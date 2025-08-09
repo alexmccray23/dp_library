@@ -1,0 +1,2880 @@
+p0157.rfl: Old record length=32000    New record length=1882          Page   1
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+The case ID will be in columns 1.9
+
+Q COMP                           FLD  [2942]         --> [10]
+T COMP
+R     1                                                             COMPLETE
+R     2                                                             QUALIFIED TERMINATE
+R     3                                                             NOT QUALIFIED
+
+Q COMPDATE                       VAR  [117.10]       --> [11.10]
+T COMPDATE
+
+Q SAMPLTY                        FLD  [2929]         --> [21]
+T SAMPLE TYPE
+R     1                                                             Land
+R     2                                                             Cell
+
+Q RESPONDENT                     FLD  [2949]         --> [22]
+T  
+T INTERVIEWER - Which respondent are you speaking with?
+T  
+R     1                                                             NAME 1
+R     2                                                             NAME 2
+R     3                                                             NAME 3
+R     4                                                             NAME 4
+R     5                                                             SPEAKING WITH A RESPONDENT NOT ON FILE
+
+Q QA                             FLD  [2954]         --> [23]
+T  
+T A. Before we begin, could you please confirm that you are not driving and that you are in a place where you can talk safely?
+T  
+R     1                                                             Yes, in safe place
+R     2                                                             No, not in a safe place (SCHEDULE CALLBACK)
+R     3                                                             DON'T KNOW/NA/REFUSED (DO NOT READ)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page   2
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q QB                             FLD  [2959.2]       --> [24.2]
+T  
+T In which state do you currently live? (DO NOT READ)
+T  
+R    01                                                             Alabama
+R    02                                                             Alaska
+R    04                                                             Arizona
+R    05                                                             Arkansas
+R    06                                                             California
+R    08                                                             Colorado
+R    09                                                             Connecticut
+R    10                                                             Delaware
+R    11                                                             District of Columbia
+R    12                                                             Florida
+R    13                                                             Georgia
+R    15                                                             Hawaii
+R    16                                                             Idaho
+R    17                                                             Illinois
+R    18                                                             Indiana
+R    19                                                             Iowa
+R    20                                                             Kansas
+R    21                                                             Kentucky
+R    22                                                             Louisiana
+R    23                                                             Maine
+R    24                                                             Maryland
+R    25                                                             Massachusetts
+R    26                                                             Michigan
+R    27                                                             Minnesota
+R    28                                                             Mississippi
+R    29                                                             Missouri
+R    30                                                             Montana
+R    31                                                             Nebraska
+R    32                                                             Nevada
+R    33                                                             New Hampshire
+R    34                                                             New Jersey
+R    35                                                             New Mexico
+R    36                                                             New York
+R    37                                                             North Carolina
+R    38                                                             North Dakota
+R    39                                                             Ohio
+R    40                                                             Oklahoma
+R    41                                                             Oregon
+R    42                                                             Pennsylvania
+R    44                                                             Rhode Island
+R    45                                                             South Carolina
+R    46                                                             South Dakota
+R    47                                                             Tennessee
+R    48                                                             Texas
+R    49                                                             Utah
+R    50                                                             Vermont
+R    51                                                             Virginia
+R    53                                                             Washington
+R    54                                                             West Virginia
+R    55                                                             Wisconsin
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page   3
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+R    56                                                             Wyoming
+R    99                                                             Other/Don't Know/Refused (DO NOT READ)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page   4
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q FIPSCOMB                       FLD  [2965.2]       --> [26.2]
+T FIPSCOMB
+R    01                                                             Alabama
+R    02                                                             Alaska
+R    04                                                             Arizona
+R    05                                                             Arkansas
+R    06                                                             California
+R    08                                                             Colorado
+R    09                                                             Connecticut
+R    10                                                             Delaware
+R    11                                                             District of Columbia
+R    12                                                             Florida
+R    13                                                             Georgia
+R    15                                                             Hawaii
+R    16                                                             Idaho
+R    17                                                             Illinois
+R    18                                                             Indiana
+R    19                                                             Iowa
+R    20                                                             Kansas
+R    21                                                             Kentucky
+R    22                                                             Louisiana
+R    23                                                             Maine
+R    24                                                             Maryland
+R    25                                                             Massachusetts
+R    26                                                             Michigan
+R    27                                                             Minnesota
+R    28                                                             Mississippi
+R    29                                                             Missouri
+R    30                                                             Montana
+R    31                                                             Nebraska
+R    32                                                             Nevada
+R    33                                                             New Hampshire
+R    34                                                             New Jersey
+R    35                                                             New Mexico
+R    36                                                             New York
+R    37                                                             North Carolina
+R    38                                                             North Dakota
+R    39                                                             Ohio
+R    40                                                             Oklahoma
+R    41                                                             Oregon
+R    42                                                             Pennsylvania
+R    44                                                             Rhode Island
+R    45                                                             South Carolina
+R    46                                                             South Dakota
+R    47                                                             Tennessee
+R    48                                                             Texas
+R    49                                                             Utah
+R    50                                                             Vermont
+R    51                                                             Virginia
+R    53                                                             Washington
+R    54                                                             West Virginia
+R    55                                                             Wisconsin
+R    56                                                             Wyoming
+R    99                                                             Other/Don't Know/Refused (DO NOT READ)
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page   5
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+
+Q REGION_4PT                     FLD  [2967]         --> [28]
+T 4 POINT REGION + CA
+R     1                                                             NORTHEAST
+R     2                                                             MIDWEST
+R     3                                                             SOUTH
+R     4                                                             WEST
+R     5                                                             CALIFORNIA
+
+Q REGION_8PT                     FLD  [2968]         --> [29]
+T 8 POINT REGION + CA
+R     1                                                             NEW ENGLAND
+R     2                                                             MID ATLANTIC
+R     3                                                             GREAT LAKES
+R     4                                                             FARM BELT
+R     5                                                             DEEP SOUTH
+R     6                                                             OUTER SOUTH
+R     7                                                             MOUNTAIN
+R     8                                                             PACIFIC
+R     9                                                             CALIFORNIA
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page   6
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q GROUP2                         FLD  [2969.3]       --> [30.3]
+T GROUP2
+R   001                                                             Connecticut
+R   002                                                             Massachusetts
+R   003                                                             Maine
+R   004                                                             New Hampshire
+R   005                                                             Rhode Island
+R   006                                                             Vermont
+R   007                                                             District of Columbia
+R   008                                                             Delaware
+R   009                                                             Maryland
+R   010                                                             New Jersey
+R   011                                                             New York
+R   012                                                             Pennsylvania
+R   013                                                             West Virginia
+R   014                                                             Illinois
+R   015                                                             Indiana
+R   016                                                             Michigan
+R   017                                                             Minnesota
+R   018                                                             Ohio
+R   019                                                             Wisconsin
+R   020                                                             Iowa
+R   021                                                             Kansas
+R   022                                                             Missouri
+R   023                                                             North Dakota
+R   024                                                             Nebraska
+R   025                                                             South Dakota
+R   026                                                             Alabama
+R   027                                                             Arkansas
+R   028                                                             Florida
+R   029                                                             Georgia
+R   030                                                             Louisiana
+R   031                                                             Mississippi
+R   032                                                             South Carolina
+R   033                                                             Kentucky
+R   034                                                             North Carolina
+R   035                                                             Oklahoma
+R   036                                                             Tennessee
+R   037                                                             Texas
+R   038                                                             Virginia
+R   039                                                             Arizona
+R   040                                                             Colorado
+R   041                                                             Idaho
+R   042                                                             Montana
+R   043                                                             New Mexico
+R   044                                                             Nevada
+R   045                                                             Utah
+R   046                                                             Wyoming
+R   047                                                             Oregon
+R   048                                                             Washington
+R   049                                                             Alaska
+R   050                                                             Hawaii
+R   051                                                             California
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page   7
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q QD1                            NUM  [2972.4]       --> [33.4]
+X Range=1913-2005            Exceptions=9999
+T  
+T Now, I am going to ask you a few questions about yourself, just to be sure we have a representative sample. (DO NOT PAUSE)
+T  
+T D1. In what year were you born?
+T  
+T ENTER RESPONSE:                       (REFUSED = 9999)
+
+Q QAGE                           NUM  [2980.4]       --> [37.4]
+X Range=0-9999               Exceptions=
+T QAGE
+
+Q AGEGROUP                       FLD  [2984]         --> [41]
+T  
+T And, to which of the following age groups do you belong...
+T  
+R     1                                                             18 to 24
+R     2                                                             25 to 34
+R     3                                                             35 to 44
+R     4                                                             45 to 54
+R     5                                                             55 to 64
+R     6                                                             65 and over
+R     7                                                             REFUSED (DO NOT READ)
+
+Q QD2                            FLD  [2989]         --> [42]
+T  
+T D2. Gender (BY OBSERVATION)
+T  
+R     1                                                             MALE
+R     2                                                             FEMALE
+
+Q GENDER                         FLD  [2994]         --> [43]
+T GENDER (QD2B OR (QD2B:4 AND OBSERVED GENDER))
+R     1                                                             MALE
+R     2                                                             FEMALE
+R     3                                                             IDENTIFY IN SOME OTHER WAY
+
+Q QD7A                           FLD  [3022]         --> [44]
+T  
+T D7A. To ensure that we have a representative sample, would you please tell me whether you are from a Hispanic, Latino, or Spanish-speaking background?
+T  
+R     1                                                             Yes, Hispanic or Latino
+R     2                                                             No, not Hispanic or Latino
+R     3                                                             DON'T KNOW (DO NOT READ)
+R     4                                                             REFUSED (DO NOT READ)
+
+
+
+
+
+
+
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page   8
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q QD7B                           FLD  [3027.2]       --> [45.2]
+T  
+T D7B. And again, for statistical purposes only, other than being an American, what is your main ethnic or racial heritage... (READ LIST, ACCEPT ONE ANSWER)
+T  
+R    01                                                             CAUCASIAN OR WHITE
+R    02                                                             AFRICAN AMERICAN OR BLACK
+R    04                                                             ASIAN OR PACIFIC ISLANDER
+R    08                                                             NATIVE AMERICAN OR AMERICAN INDIAN
+R    03                                                             HISPANIC OR LATINO (DO NOT READ - ONLY CODE IF VOLUNTEERED)
+R    05                                                             OTHER (DO NOT READ) (IF PUNCH, THEN ASK:) Now I realize you just said your main ethnic or racial heritage does not fall into any of the categories I just mentioned...but if you had to choose JUST ONE of these categories, which ONE would you choose?)
+R    06                                                             DON'T KNOW (DO NOT READ)
+R    07                                                             REFUSED (DO NOT READ)
+
+Q QUO_RACE                       FLD  [3083]         --> [47]
+T QUO_RACE
+R     1                                                             AFAM
+R     2                                                             HISP
+R     3                                                             OTHER ETHNICITY
+
+Q QD3A                           FLD  [3084]         --> [48]
+T  
+T D3A. What is the last grade you completed in school? (DO NOT READ CHOICES)
+T  
+R     1                                                             SOME GRADE SCHOOL (GRADES 1-8)
+R     2                                                             SOME HIGH SCHOOL (GRADES 9-11)
+R     3                                                             GRADUATED HIGH SCHOOL (GRADE 12)
+R     4                                                             TECHNICAL/VOCATIONAL SCHOOL
+R     5                                                             SOME COLLEGE
+R     6                                                             GRADUATED COLLEGE (e.g. BACHELOR OF ARTS, BACHELOR OF SCIENCE)
+R     7                                                             POST-GRADUATE (e.g. PhD, MD, JD)
+R     8                                                             REFUSED (DO NOT READ)
+
+Q QE                             FLD  [3089]         --> [49]
+T  
+T E. Are you registered to vote ANSWERFROM(TQE_TEXT) or, like many others, have you not yet had the chance to register to vote?
+T  
+R     1                                                             YES / REGISTERED
+R     2                                                             NO / NOT REGISTERED
+R     3                                                             NOT SURE/REFUSED (DO NOT READ)
+
+Q QF                             FLD  [3094]         --> [50]
+T  
+T  
+T F. Are you, or is anyone in your household, employed by a newspaper, television or radio station, or a political party, or by a candidate for political office?
+T  
+R     1                                                             YES
+R     2                                                             NO
+R     3                                                             NOT SURE/REFUSED (DO NOT READ)
+
+Q VERSION                        FLD  [3134]         --> [51]
+T VERSION
+R     1                                                             A
+R     2                                                             B
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page   9
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q VERSION2                       FLD  [3135]         --> [52]
+T VERSION2
+R     3                                                             C
+R     4                                                             D
+R     5                                                             E
+R     6                                                             F
+
+Q VER_GEND                       FLD  [3146]         --> [53]
+T VER_GEND
+R     1                                                             VERSION A MALE
+R     2                                                             VERSION A FEMALE
+R     3                                                             VERSION B MALE
+R     4                                                             VERSION B FEMALE
+
+Q VER2_GEND                      FLD  [3147]         --> [54]
+T VER2_GEND
+R     1                                                             VERSION C MALE
+R     2                                                             VERSION C FEMALE
+R     3                                                             VERSION D MALE
+R     4                                                             VERSION D FEMALE
+R     5                                                             VERSION E MALE
+R     6                                                             VERSION E FEMALE
+R     7                                                             VERSION F MALE
+R     8                                                             VERSION F FEMALE
+
+Q RESP_SEX                       FLD  [3148]         --> [55]
+T SAMPLE GENDER - BASED ON RESPONDENT INTERVIEWED
+R     1                                                             MALE
+R     2                                                             FEMALE
+R     0                                                             BLANK
+
+Q RESP_AGE_GRP                   FLD  [3149.2]       --> [56.2]
+T SAMPLE AGEGROUP - BASED ON RESPONDENT INTERVIEWED
+R    01                                                             18 to 24
+R    02                                                             25 to 34
+R    03                                                             35 to 44
+R    04                                                             45 to 54
+R    05                                                             55 to 64
+R    06                                                             65 and over
+R    00                                                             BLANK
+
+Q RESP_ETH                       FLD  [3151.2]       --> [58.2]
+T SAMPLE ETHNICITY - BASED ON RESPONDENT INTERVIEWED
+R    01                                                             Caucasian/White
+R    02                                                             African American
+R    03                                                             Hispanic
+R    04                                                             Asian
+R    99                                                             Other
+R    00                                                             BLANK
+
+
+
+
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  10
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q RESP_PARTY                     FLD  [3153]         --> [60]
+T SAMPLE PARTY - BASED ON RESPONDENT INTERVIEWED
+R     1                                                             Republican
+R     2                                                             Democrat
+R     3                                                             Decline to State
+R     4                                                             Independent
+R     9                                                             Other
+R     0                                                             BLANK
+
+Q RESP_PRTSN_GR                  FLD  [3154.2]       --> [61.2]
+T SAMPLE PARTISAN SCORE GROUP - BASED ON RESPONDENT INTERVIEWED
+R    01                                                             01
+R    02                                                             02
+R    03                                                             03
+R    04                                                             04
+R    05                                                             05
+R    06                                                             06
+R    07                                                             07
+R    08                                                             08
+R    09                                                             09
+R    10                                                             10
+R    00                                                             00
+
+Q RESP_VTR_TURNOUT               FLD  [3156]         --> [63]
+T VOTER_TURNOUT BASED ON POLITICAL AFFINITY AND VOTING PROPENSITY - FOR THE RESPONDENT INTERVIEWED
+R     1                                                             High Turnout GOP
+R     2                                                             Low Turnout GOP
+R     3                                                             High Turnout IND
+R     4                                                             Low Turnout IND
+R     5                                                             High Turnout DEM
+R     6                                                             Low Turnout DEM
+R     0                                                             BLANK
+
+Q PASSED_SCREENER                NUM  [3206]         --> [64]
+X Range=0-9                  Exceptions=
+T PASSED_SCREENER
+
+Q Q1                             FLD  [3304]         --> [65]
+T  
+T 1. In general, do you have a favorable or unfavorable opinion of beverage companies?
+T  
+T (IF FAVORABLE/UNFAVORABLE, ASK:)  Would that be very (favorable/unfavorable) or just somewhat (favorable/unfavorable)?
+T  
+R     1                                                             VERY FAVORABLE
+R     2                                                             SOMEWHAT FAVORABLE
+R     3                                                             SOMEWHAT UNFAVORABLE
+R     4                                                             VERY UNFAVORABLE
+R     5                                                             UNFAMILIAR (DO NOT READ)
+R     6                                                             DON'T KNOW/REFUSE (DO NOT READ)
+
+
+
+
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  11
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q Q2                             FLD  [3309]         --> [66]
+T  
+T Now, I would like you to tell me if you have a favorable or unfavorable opinion of a few more types of companies.  If I mention one that you are unfamiliar with, just tell me and we'll move on to the next one.
+T  
+T DATAFROM(0.1)
+T  
+T 2. Soft drink companies
+T  
+T (IF FAVORABLE/UNFAVORABLE, ASK:)  Would that be very (favorable/unfavorable) or just somewhat (favorable/unfavorable)?
+T  
+R     1                                                             VERY FAVORABLE
+R     2                                                             SOMEWHAT FAVORABLE
+R     3                                                             SOMEWHAT UNFAVORABLE
+R     4                                                             VERY UNFAVORABLE
+R     5                                                             UNFAMILIAR
+R     6                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+Q Q3                             FLD  [3314]         --> [67]
+T  
+T Now, I would like you to tell me if you have a favorable or unfavorable opinion of a few more types of companies.  If I mention one that you are unfamiliar with, just tell me and we'll move on to the next one.
+T  
+T DATAFROM(0.1)
+T  
+T 3. Beer companies
+T  
+T (IF FAVORABLE/UNFAVORABLE, ASK:)  Would that be very (favorable/unfavorable) or just somewhat (favorable/unfavorable)?
+T  
+R     1                                                             VERY FAVORABLE
+R     2                                                             SOMEWHAT FAVORABLE
+R     3                                                             SOMEWHAT UNFAVORABLE
+R     4                                                             VERY UNFAVORABLE
+R     5                                                             UNFAMILIAR
+R     6                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+Q ED4                            FLD  [4010]         --> [68]
+T  
+T Are you finished editing OE4?
+T  
+R     1                                                             OE4 ANSWERED
+R     2                                                             No
+
+Q ED5                            FLD  [4015]         --> [69]
+T  
+T Are you finished editing OE5?
+T  
+R     1                                                             OE5 ANSWERED
+R     2                                                             No
+
+
+
+
+
+
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  12
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q Q6                             FLD  [3352]         --> [70]
+T  
+T Now, I am going to read you a few statements you might hear describing America's soft drink and beverage companies, those are the companies who produce soft drinks, bottled water, sports drinks, juice drinks and other products. For each statement please tell me whether you think it describes America's soft drink and beverage companies ANSWERFROM(T2Q6,1,1), ANSWERFROM(T2Q6,2,1), ANSWERFROM(T2Q6,3,1), or ANSWERFROM(T2Q6,4,1).
+T  
+T DATAFROM(0.1)
+T  
+T 6. Make an important contribution to job creation and our economy.
+T  
+R     1                                                             VERY WELL
+R     2                                                             SOMEWHAT WELL
+R     3                                                             NOT TOO WELL
+R     4                                                             NOT AT ALL WELL
+R     5                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+Q Q7                             FLD  [3357]         --> [71]
+T  
+T Now, I am going to read you a few statements you might hear describing America's soft drink and beverage companies, those are the companies who produce soft drinks, bottled water, sports drinks, juice drinks and other products. For each statement please tell me whether you think it describes America's soft drink and beverage companies ANSWERFROM(T2Q6,1,1), ANSWERFROM(T2Q6,2,1), ANSWERFROM(T2Q6,3,1), or ANSWERFROM(T2Q6,4,1).
+T  
+T DATAFROM(0.1)
+T  
+T 7. Are good corporate citizens.
+T  
+R     1                                                             VERY WELL
+R     2                                                             SOMEWHAT WELL
+R     3                                                             NOT TOO WELL
+R     4                                                             NOT AT ALL WELL
+R     5                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+Q Q8                             FLD  [3362]         --> [72]
+T  
+T Now, I am going to read you a few statements you might hear describing America's soft drink and beverage companies, those are the companies who produce soft drinks, bottled water, sports drinks, juice drinks and other products. For each statement please tell me whether you think it describes America's soft drink and beverage companies ANSWERFROM(T2Q6,1,1), ANSWERFROM(T2Q6,2,1), ANSWERFROM(T2Q6,3,1), or ANSWERFROM(T2Q6,4,1).
+T  
+T DATAFROM(0.1)
+T  
+T 8. Are playing a responsible role in helping strengthen the communities in which they operate around the country.
+T  
+R     1                                                             VERY WELL
+R     2                                                             SOMEWHAT WELL
+R     3                                                             NOT TOO WELL
+R     4                                                             NOT AT ALL WELL
+R     5                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+Q ED9                            FLD  [4020]         --> [73]
+T  
+T Are you finished editing OE9?
+T  
+R     1                                                             OE9 ANSWERED
+R     2                                                             No
+
+
+
+
+
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  13
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q ED10                           FLD  [4025]         --> [74]
+T  
+T Are you finished editing OE10?
+T  
+R     1                                                             OE10 ANSWERED
+R     2                                                             No
+
+Q Q11                            FLD  [3387]         --> [75]
+T  
+T Now, moving on... I would like you to tell me if you have a favorable or unfavorable opinion of the following products.  If I mention one that you are unfamiliar with, just tell me and we'll move on to the next one.
+T  
+T DATAFROM(0.1)
+T  
+T 11. Regular, full-calorie soft drinks
+T  
+T (IF FAVORABLE/UNFAVORABLE, ASK:)  Would that be very (favorable/unfavorable) or just somewhat (favorable/unfavorable)?
+T  
+R     1                                                             VERY FAVORABLE
+R     2                                                             SOMEWHAT FAVORABLE
+R     3                                                             SOMEWHAT UNFAVORABLE
+R     4                                                             VERY UNFAVORABLE
+R     5                                                             UNFAMILIAR
+R     6                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+Q Q12                            FLD  [3392]         --> [76]
+T  
+T Now, moving on... I would like you to tell me if you have a favorable or unfavorable opinion of the following products.  If I mention one that you are unfamiliar with, just tell me and we'll move on to the next one.
+T  
+T DATAFROM(0.1)
+T  
+T 12. Bottled water without any added flavor
+T  
+T (IF FAVORABLE/UNFAVORABLE, ASK:)  Would that be very (favorable/unfavorable) or just somewhat (favorable/unfavorable)?
+T  
+R     1                                                             VERY FAVORABLE
+R     2                                                             SOMEWHAT FAVORABLE
+R     3                                                             SOMEWHAT UNFAVORABLE
+R     4                                                             VERY UNFAVORABLE
+R     5                                                             UNFAMILIAR
+R     6                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  14
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q Q13                            FLD  [3397]         --> [77]
+T  
+T Now, moving on... I would like you to tell me if you have a favorable or unfavorable opinion of the following products.  If I mention one that you are unfamiliar with, just tell me and we'll move on to the next one.
+T  
+T DATAFROM(0.1)
+T  
+T 13. Sports drinks, such as Gatorade or Powerade
+T  
+T (IF FAVORABLE/UNFAVORABLE, ASK:)  Would that be very (favorable/unfavorable) or just somewhat (favorable/unfavorable)?
+T  
+R     1                                                             VERY FAVORABLE
+R     2                                                             SOMEWHAT FAVORABLE
+R     3                                                             SOMEWHAT UNFAVORABLE
+R     4                                                             VERY UNFAVORABLE
+R     5                                                             UNFAMILIAR
+R     6                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+Q Q14                            FLD  [3402]         --> [78]
+T  
+T Now, moving on... I would like you to tell me if you have a favorable or unfavorable opinion of the following products.  If I mention one that you are unfamiliar with, just tell me and we'll move on to the next one.
+T  
+T DATAFROM(0.1)
+T  
+T 14. Full-calorie juice drinks, teas or flavored waters
+T  
+T (IF FAVORABLE/UNFAVORABLE, ASK:)  Would that be very (favorable/unfavorable) or just somewhat (favorable/unfavorable)?
+T  
+R     1                                                             VERY FAVORABLE
+R     2                                                             SOMEWHAT FAVORABLE
+R     3                                                             SOMEWHAT UNFAVORABLE
+R     4                                                             VERY UNFAVORABLE
+R     5                                                             UNFAMILIAR
+R     6                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+Q Q15                            FLD  [3407]         --> [79]
+T  
+T Now, moving on... I would like you to tell me if you have a favorable or unfavorable opinion of the following products.  If I mention one that you are unfamiliar with, just tell me and we'll move on to the next one.
+T  
+T DATAFROM(0.1)
+T  
+T 15. Low- or no-calorie juice drinks, teas or flavored waters
+T  
+T (IF FAVORABLE/UNFAVORABLE, ASK:)  Would that be very (favorable/unfavorable) or just somewhat (favorable/unfavorable)?
+T  
+R     1                                                             VERY FAVORABLE
+R     2                                                             SOMEWHAT FAVORABLE
+R     3                                                             SOMEWHAT UNFAVORABLE
+R     4                                                             VERY UNFAVORABLE
+R     5                                                             UNFAMILIAR
+R     6                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+
+
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  15
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q Q16                            FLD  [3412]         --> [80]
+T  
+T Now, moving on... I would like you to tell me if you have a favorable or unfavorable opinion of the following products.  If I mention one that you are unfamiliar with, just tell me and we'll move on to the next one.
+T  
+T DATAFROM(0.1)
+T  
+T 16. Energy drinks
+T  
+T (IF FAVORABLE/UNFAVORABLE, ASK:)  Would that be very (favorable/unfavorable) or just somewhat (favorable/unfavorable)?
+T  
+R     1                                                             VERY FAVORABLE
+R     2                                                             SOMEWHAT FAVORABLE
+R     3                                                             SOMEWHAT UNFAVORABLE
+R     4                                                             VERY UNFAVORABLE
+R     5                                                             UNFAMILIAR
+R     6                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+Q Q17                            FLD  [3417]         --> [81]
+T  
+T Now, moving on... I would like you to tell me if you have a favorable or unfavorable opinion of the following products.  If I mention one that you are unfamiliar with, just tell me and we'll move on to the next one.
+T  
+T DATAFROM(0.1)
+T  
+T 17. Low- or no-calorie soft drinks
+T  
+T (IF FAVORABLE/UNFAVORABLE, ASK:)  Would that be very (favorable/unfavorable) or just somewhat (favorable/unfavorable)?
+T  
+R     1                                                             VERY FAVORABLE
+R     2                                                             SOMEWHAT FAVORABLE
+R     3                                                             SOMEWHAT UNFAVORABLE
+R     4                                                             VERY UNFAVORABLE
+R     5                                                             UNFAMILIAR
+R     6                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+Q Q18                            FLD  [3432]         --> [82]
+T  
+T Now, moving on... I would like you to tell me if you have a favorable or unfavorable opinion of the following products.  If I mention one that you are unfamiliar with, just tell me and we'll move on to the next one.
+T  
+T DATAFROM(0.1)
+T  
+T 18. Zero sugar soft drinks
+T  
+T (IF FAVORABLE/UNFAVORABLE, ASK:)  Would that be very (favorable/unfavorable) or just somewhat (favorable/unfavorable)?
+T  
+R     1                                                             VERY FAVORABLE
+R     2                                                             SOMEWHAT FAVORABLE
+R     3                                                             SOMEWHAT UNFAVORABLE
+R     4                                                             VERY UNFAVORABLE
+R     5                                                             UNFAMILIAR
+R     6                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+
+
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  16
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q Q19                            FLD  [3437]         --> [83]
+T  
+T Now, moving on... I would like you to tell me if you have a favorable or unfavorable opinion of the following products.  If I mention one that you are unfamiliar with, just tell me and we'll move on to the next one.
+T  
+T DATAFROM(0.1)
+T  
+T 19. Sparkling water
+T  
+T (IF FAVORABLE/UNFAVORABLE, ASK:)  Would that be very (favorable/unfavorable) or just somewhat (favorable/unfavorable)?
+T  
+R     1                                                             VERY FAVORABLE
+R     2                                                             SOMEWHAT FAVORABLE
+R     3                                                             SOMEWHAT UNFAVORABLE
+R     4                                                             VERY UNFAVORABLE
+R     5                                                             UNFAMILIAR
+R     6                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+Q Q20                            FLD  [3442]         --> [84]
+T  
+T Now, moving on... I would like you to tell me if you have a favorable or unfavorable opinion of the following products.  If I mention one that you are unfamiliar with, just tell me and we'll move on to the next one.
+T  
+T DATAFROM(0.1)
+T  
+T 20. Flavored or enhanced waters
+T  
+T (IF FAVORABLE/UNFAVORABLE, ASK:)  Would that be very (favorable/unfavorable) or just somewhat (favorable/unfavorable)?
+T  
+R     1                                                             VERY FAVORABLE
+R     2                                                             SOMEWHAT FAVORABLE
+R     3                                                             SOMEWHAT UNFAVORABLE
+R     4                                                             VERY UNFAVORABLE
+R     5                                                             UNFAMILIAR
+R     6                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+Q Q21                            FLD  [3447]         --> [85]
+T  
+T Now, moving on... I would like you to tell me if you have a favorable or unfavorable opinion of the following products.  If I mention one that you are unfamiliar with, just tell me and we'll move on to the next one.
+T  
+T DATAFROM(0.1)
+T  
+T 21. Diet soft drinks
+T  
+T (IF FAVORABLE/UNFAVORABLE, ASK:)  Would that be very (favorable/unfavorable) or just somewhat (favorable/unfavorable)?
+T  
+R     1                                                             VERY FAVORABLE
+R     2                                                             SOMEWHAT FAVORABLE
+R     3                                                             SOMEWHAT UNFAVORABLE
+R     4                                                             VERY UNFAVORABLE
+R     5                                                             UNFAMILIAR
+R     6                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+
+
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  17
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q ED22                           FLD  [4030]         --> [86]
+T  
+T Are you finished editing OE22?
+T  
+R     1                                                             OE22 ANSWERED
+R     2                                                             No
+
+Q Q23                            FLD  [3471]         --> [87]
+T  
+T Now, I'm going to read you the same list of beverage products again.  This time, for each one, please tell me if you have consumed that product in the last week.
+T  
+T DATAFROM(0.1)
+T  
+T 23. Regular, full-calorie soft drinks
+T  
+R     1                                                             CONSUMED IN THE LAST WEEK
+R     2                                                             HAVE NOT CONSUMED IN THE LAST WEEK
+R     3                                                             REFUSED (DO NOT READ)
+
+Q Q24                            FLD  [3476]         --> [88]
+T  
+T Now, I'm going to read you the same list of beverage products again.  This time, for each one, please tell me if you have consumed that product in the last week.
+T  
+T DATAFROM(0.1)
+T  
+T 24. Bottled water without any added flavor
+T  
+R     1                                                             CONSUMED IN THE LAST WEEK
+R     2                                                             HAVE NOT CONSUMED IN THE LAST WEEK
+R     3                                                             REFUSED (DO NOT READ)
+
+Q Q25                            FLD  [3481]         --> [89]
+T  
+T Now, I'm going to read you the same list of beverage products again.  This time, for each one, please tell me if you have consumed that product in the last week.
+T  
+T DATAFROM(0.1)
+T  
+T 25. Sports drinks, such as Gatorade or Powerade
+T  
+R     1                                                             CONSUMED IN THE LAST WEEK
+R     2                                                             HAVE NOT CONSUMED IN THE LAST WEEK
+R     3                                                             REFUSED (DO NOT READ)
+
+
+
+
+
+
+
+
+
+
+
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  18
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q Q26                            FLD  [3486]         --> [90]
+T  
+T Now, I'm going to read you the same list of beverage products again.  This time, for each one, please tell me if you have consumed that product in the last week.
+T  
+T DATAFROM(0.1)
+T  
+T 26. Full-calorie juice drinks, teas or flavored waters
+T  
+R     1                                                             CONSUMED IN THE LAST WEEK
+R     2                                                             HAVE NOT CONSUMED IN THE LAST WEEK
+R     3                                                             REFUSED (DO NOT READ)
+
+Q Q27                            FLD  [3491]         --> [91]
+T  
+T Now, I'm going to read you the same list of beverage products again.  This time, for each one, please tell me if you have consumed that product in the last week.
+T  
+T DATAFROM(0.1)
+T  
+T 27. Low- or no-calorie juice drinks, teas or flavored waters
+T  
+R     1                                                             CONSUMED IN THE LAST WEEK
+R     2                                                             HAVE NOT CONSUMED IN THE LAST WEEK
+R     3                                                             REFUSED (DO NOT READ)
+
+Q Q28                            FLD  [3496]         --> [92]
+T  
+T Now, I'm going to read you the same list of beverage products again.  This time, for each one, please tell me if you have consumed that product in the last week.
+T  
+T DATAFROM(0.1)
+T  
+T 28. Energy drinks
+T  
+R     1                                                             CONSUMED IN THE LAST WEEK
+R     2                                                             HAVE NOT CONSUMED IN THE LAST WEEK
+R     3                                                             REFUSED (DO NOT READ)
+
+Q Q29                            FLD  [3501]         --> [93]
+T  
+T Now, I'm going to read you the same list of beverage products again.  This time, for each one, please tell me if you have consumed that product in the last week.
+T  
+T DATAFROM(0.1)
+T  
+T 29. Low- or no-calorie soft drinks
+T  
+R     1                                                             CONSUMED IN THE LAST WEEK
+R     2                                                             HAVE NOT CONSUMED IN THE LAST WEEK
+R     3                                                             REFUSED (DO NOT READ)
+
+
+
+
+
+
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  19
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q Q30                            FLD  [3506]         --> [94]
+T  
+T Now, I'm going to read you the same list of beverage products again.  This time, for each one, please tell me if you have consumed that product in the last week.
+T  
+T DATAFROM(0.1)
+T  
+T 30. Zero sugar soft drinks
+T  
+R     1                                                             CONSUMED IN THE LAST WEEK
+R     2                                                             HAVE NOT CONSUMED IN THE LAST WEEK
+R     3                                                             REFUSED (DO NOT READ)
+
+Q Q31                            FLD  [3511]         --> [95]
+T  
+T Now, I'm going to read you the same list of beverage products again.  This time, for each one, please tell me if you have consumed that product in the last week.
+T  
+T DATAFROM(0.1)
+T  
+T 31. Sparkling water
+T  
+R     1                                                             CONSUMED IN THE LAST WEEK
+R     2                                                             HAVE NOT CONSUMED IN THE LAST WEEK
+R     3                                                             REFUSED (DO NOT READ)
+
+Q Q32                            FLD  [3516]         --> [96]
+T  
+T Now, I'm going to read you the same list of beverage products again.  This time, for each one, please tell me if you have consumed that product in the last week.
+T  
+T DATAFROM(0.1)
+T  
+T 32. Flavored or enhanced waters
+T  
+R     1                                                             CONSUMED IN THE LAST WEEK
+R     2                                                             HAVE NOT CONSUMED IN THE LAST WEEK
+R     3                                                             REFUSED (DO NOT READ)
+
+Q Q33CNT                         NUM  [3521]         --> [97]
+X Range=0-9                  Exceptions=
+T Q33CNT
+
+Q Q33ORDER                       NUM  [3532]         --> [98]
+X Range=0-9                  Exceptions=
+T Q33ORDER
+
+Q Q33                            NUM  [3533.3]       --> [99.3]
+X Range=1-500                Exceptions=999
+T  
+T 33. Assuming the average drink serving is twelve ounces, what is your best estimate of how many servings of regular soft drinks you have had in the last week?
+T  
+T ENTER NUMBER (1-500):                        (999 = DON'T KNOW/REFUSED)
+
+
+
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  20
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q Q34ORDER                       NUM  [3540]         --> [102]
+X Range=0-9                  Exceptions=
+T Q34ORDER
+
+Q Q34                            NUM  [3541.3]       --> [103.3]
+X Range=1-500                Exceptions=999
+T  
+T  
+T 34. What is your best estimate of how many servings of bottled water you have had in the last week?
+T  
+T ENTER NUMBER (1-500):                        (999 = DON'T KNOW/REFUSED)
+
+Q Q35ORDER                       NUM  [3548]         --> [106]
+X Range=0-9                  Exceptions=
+T Q35ORDER
+
+Q Q35                            NUM  [3549.3]       --> [107.3]
+X Range=1-500                Exceptions=999
+T  
+T  
+T  
+T 35. What is your best estimate of how many servings of sports drinks you have had in the last week?
+T  
+T ENTER NUMBER (1-500):                        (999 = DON'T KNOW/REFUSED)
+
+Q Q36ORDER                       NUM  [3556]         --> [110]
+X Range=0-9                  Exceptions=
+T Q36ORDER
+
+Q Q36                            NUM  [3557.3]       --> [111.3]
+X Range=1-500                Exceptions=999
+T  
+T 36. What is your best estimate of how many servings of full-calorie juice drinks, teas or flavored waters you have had in the last week?
+T  
+T  
+T ENTER NUMBER (1-500):                        (999 = DON'T KNOW/REFUSED)
+
+Q Q37ORDER                       NUM  [3564]         --> [114]
+X Range=0-9                  Exceptions=
+T Q37ORDER
+
+Q Q37                            NUM  [3565.3]       --> [115.3]
+X Range=1-500                Exceptions=999
+T  
+T 37. What is your best estimate of how many servings of low- or no-calorie juice drinks, teas or flavored waters you have had in the last week?
+T  
+T  
+T  
+T ENTER NUMBER (1-500):                        (999 = DON'T KNOW/REFUSED)
+
+Q Q38ORDER                       NUM  [3572]         --> [118]
+X Range=0-9                  Exceptions=
+T Q38ORDER
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  21
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q Q38                            NUM  [3573.3]       --> [119.3]
+X Range=1-500                Exceptions=999
+T  
+T 38. What is your best estimate of how many servings of energy drinks you have had in the last week?
+T  
+T  
+T  
+T  
+T ENTER NUMBER (1-500):                        (999 = DON'T KNOW/REFUSED)
+
+Q Q39ORDER                       NUM  [3580]         --> [122]
+X Range=0-9                  Exceptions=
+T Q39ORDER
+
+Q Q39                            NUM  [3581.3]       --> [123.3]
+X Range=1-500                Exceptions=999
+T  
+T 39. Assuming the average drink serving is twelve ounces, what is your best estimate of how many servings of low- or no-calorie soft drinks you have had in the last week?
+T  
+T ENTER NUMBER (1-500):                        (999 = DON'T KNOW/REFUSED)
+
+Q Q40ORDER                       NUM  [3588]         --> [126]
+X Range=0-9                  Exceptions=
+T Q40ORDER
+
+Q Q40                            NUM  [3589.3]       --> [127.3]
+X Range=1-500                Exceptions=999
+T  
+T  
+T 40. Assuming the average drink serving is twelve ounces, what is your best estimate of how many servings of zero sugar soft drinks you have had in the last week?
+T  
+T ENTER NUMBER (1-500):                        (999 = DON'T KNOW/REFUSED)
+
+Q Q41ORDER                       NUM  [3596]         --> [130]
+X Range=0-9                  Exceptions=
+T Q41ORDER
+
+Q Q41                            NUM  [3597.3]       --> [131.3]
+X Range=1-500                Exceptions=999
+T  
+T  
+T  
+T 41. Assuming the average drink serving is twelve ounces, what is your best estimate of how many servings of sparkling water you have had in the last week?
+T  
+T ENTER NUMBER (1-500):                        (999 = DON'T KNOW/REFUSED)
+
+Q Q42ORDER                       NUM  [3604]         --> [134]
+X Range=0-9                  Exceptions=
+T Q42ORDER
+
+
+
+
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  22
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q Q42                            NUM  [3605.3]       --> [135.3]
+X Range=1-500                Exceptions=999
+T  
+T 42. Assuming the average drink serving is twelve ounces, what is your best estimate of how many servings of flavored or enhanced water you have had in the last week?
+T  
+T ENTER NUMBER (1-500):                        (999 = DON'T KNOW/REFUSED)
+
+Q Q43                            FLD  [3616]         --> [138]
+T  
+T 43. Do you think there are any health risks associated with drinking soft drinks?
+T  
+R     1                                                             YES
+R     2                                                             NO
+R     3                                                             DON'T KNOW (DO NOT READ)
+R     4                                                             REFUSED (DO NOT READ)
+
+Q Q44                            FLD  [3671.2]       --> [139.32]        Type=MFLD    Max=16
+X  1st=[139.2]              2nd=[141.2]              3rd=[143.2]
+X  4th=[145.2]              5th=[147.2]              6th=[149.2]
+X  7th=[151.2]              8th=[153.2]              9th=[155.2]
+X 10th=[157.2]             11th=[159.2]             12th=[161.2]
+X 13th=[163.2]             14th=[165.2]             15th=[167.2]
+X 16th=[169.2]
+T  
+T 44. What would you say are the health risks associated with drinking soft drinks? (DO NOT READ LIST -ACCEPT MULTIPLE RESPONSES)
+T  
+R    01                                                             Addiction
+R    02                                                             Artificial ingredients cause unknown consequences
+R    03                                                             Cancer
+R    04                                                             Dehydration
+R    05                                                             Diabetes
+R    17                                                             Effect on liver
+R    06                                                             Effect on kidneys/stomach
+R    07                                                             High blood pressure
+R    08                                                             Heart issues
+R    09                                                             Lack nutrients
+R    10                                                             Obesity/Overweight
+R    18                                                             Osteoporosis
+R    11                                                             Too much caffeine/hyperactive
+R    12                                                             Too much sugar
+R    13                                                             Tooth decay/enamel erosion
+R    14                                                             Other (SPECIFY) DATAFROM(0.1)
+R    15                                                             DON'T KNOW (DO NOT READ)
+R    16                                                             REFUSED (DO NOT READ)
+
+
+
+
+
+
+
+
+
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  23
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q Q45                            FLD  [3722]         --> [171]
+T  
+T Now, I am going to read you some things that could be said about soft drinks and other beverages.  For each one, please tell me before this survey how much you have seen, read, or heard about that item over the last several months - ANSWERFROM(T2Q45,1,1), ANSWERFROM(T2Q45,2,1), ANSWERFROM(T2Q45,3,1), or ANSWERFROM(T2Q45,4,1).
+T  
+T DATAFROM(0.1)
+T  
+T 45. Plastic beverage bottles are 100% (one hundred percent) recyclable, including the cap.
+T  
+R     1                                                             A LOT
+R     2                                                             SOME
+R     3                                                             NOT TOO MUCH
+R     4                                                             NOTHING AT ALL
+R     5                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+Q Q46                            FLD  [3727]         --> [172]
+T  
+T Now, I am going to read you some things that could be said about soft drinks and other beverages.  For each one, please tell me before this survey how much you have seen, read, or heard about that item over the last several months - ANSWERFROM(T2Q45,1,1), ANSWERFROM(T2Q45,2,1), ANSWERFROM(T2Q45,3,1), or ANSWERFROM(T2Q45,4,1).
+T  
+T DATAFROM(0.1)
+T  
+T 46. Artificial sweeteners found in no- or low-calorie or zero sugar beverages can cause cancer.
+T  
+R     1                                                             A LOT
+R     2                                                             SOME
+R     3                                                             NOT TOO MUCH
+R     4                                                             NOTHING AT ALL
+R     5                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+Q Q47                            FLD  [3732]         --> [173]
+T  
+T Now, I am going to read you some things that could be said about soft drinks and other beverages.  For each one, please tell me before this survey how much you have seen, read, or heard about that item over the last several months - ANSWERFROM(T2Q45,1,1), ANSWERFROM(T2Q45,2,1), ANSWERFROM(T2Q45,3,1), or ANSWERFROM(T2Q45,4,1).
+T  
+T DATAFROM(0.1)
+T  
+T 47. Soft drink companies are creating a broad range of new beverages that are no- or low-calorie or zero sugar, giving consumers more choices in tastes and needs.
+T  
+R     1                                                             A LOT
+R     2                                                             SOME
+R     3                                                             NOT TOO MUCH
+R     4                                                             NOTHING AT ALL
+R     5                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  24
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q Q48                            FLD  [3737]         --> [174]
+T  
+T Now, I am going to read you some things that could be said about soft drinks and other beverages.  For each one, please tell me before this survey how much you have seen, read, or heard about that item over the last several months - ANSWERFROM(T2Q45,1,1), ANSWERFROM(T2Q45,2,1), ANSWERFROM(T2Q45,3,1), or ANSWERFROM(T2Q45,4,1).
+T  
+T DATAFROM(0.1)
+T  
+T 48. A plastic beverage bottle can be remade into a new plastic bottle.
+T  
+R     1                                                             A LOT
+R     2                                                             SOME
+R     3                                                             NOT TOO MUCH
+R     4                                                             NOTHING AT ALL
+R     5                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+Q Q49                            FLD  [3742]         --> [175]
+T  
+T Now, I am going to read you some things that could be said about soft drinks and other beverages.  For each one, please tell me before this survey how much you have seen, read, or heard about that item over the last several months - ANSWERFROM(T2Q45,1,1), ANSWERFROM(T2Q45,2,1), ANSWERFROM(T2Q45,3,1), or ANSWERFROM(T2Q45,4,1).
+T  
+T DATAFROM(0.1)
+T  
+T 49. Soft drinks consumed in moderation can fit into a balanced lifestyle.
+T  
+R     1                                                             A LOT
+R     2                                                             SOME
+R     3                                                             NOT TOO MUCH
+R     4                                                             NOTHING AT ALL
+R     5                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+Q Q50                            FLD  [3747]         --> [176]
+T  
+T Now, I am going to read you some things that could be said about soft drinks and other beverages.  For each one, please tell me before this survey how much you have seen, read, or heard about that item over the last several months - ANSWERFROM(T2Q45,1,1), ANSWERFROM(T2Q45,2,1), ANSWERFROM(T2Q45,3,1), or ANSWERFROM(T2Q45,4,1).
+T  
+T DATAFROM(0.1)
+T  
+T 50. Soft drinks and sugar-sweetened beverages are the leading cause of obesity.
+T  
+R     1                                                             A LOT
+R     2                                                             SOME
+R     3                                                             NOT TOO MUCH
+R     4                                                             NOTHING AT ALL
+R     5                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  25
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q Q51                            FLD  [3752]         --> [177]
+T  
+T Now, I am going to read you some things that could be said about soft drinks and other beverages.  For each one, please tell me before this survey how much you have seen, read, or heard about that item over the last several months - ANSWERFROM(T2Q45,1,1), ANSWERFROM(T2Q45,2,1), ANSWERFROM(T2Q45,3,1), or ANSWERFROM(T2Q45,4,1).
+T  
+T DATAFROM(0.1)
+T  
+T 51. Some cities and counties across the country are completely banning and eliminating the use of plastic beverage bottles.
+T  
+R     1                                                             A LOT
+R     2                                                             SOME
+R     3                                                             NOT TOO MUCH
+R     4                                                             NOTHING AT ALL
+R     5                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+Q Q52                            FLD  [3757]         --> [178]
+T  
+T Now, I am going to read you some things that could be said about soft drinks and other beverages.  For each one, please tell me before this survey how much you have seen, read, or heard about that item over the last several months - ANSWERFROM(T2Q45,1,1), ANSWERFROM(T2Q45,2,1), ANSWERFROM(T2Q45,3,1), or ANSWERFROM(T2Q45,4,1).
+T  
+T DATAFROM(0.1)
+T  
+T 52. The U.S. Food and Drug Administration has extensively reviewed and approved the low-calorie sweeteners used in no- and low-calorie soft drinks and confirmed them to be safe and the official U.S. Dietary Guidelines consider them safe as well.
+T  
+R     1                                                             A LOT
+R     2                                                             SOME
+R     3                                                             NOT TOO MUCH
+R     4                                                             NOTHING AT ALL
+R     5                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+Q Q53                            FLD  [3762]         --> [179]
+T  
+T Now, I am going to read you some things that could be said about soft drinks and other beverages.  For each one, please tell me before this survey how much you have seen, read, or heard about that item over the last several months - ANSWERFROM(T2Q45,1,1), ANSWERFROM(T2Q45,2,1), ANSWERFROM(T2Q45,3,1), or ANSWERFROM(T2Q45,4,1).
+T  
+T DATAFROM(0.1)
+T  
+T 53. Nearly 60% (sixty percent) of beverages sold today contain zero sugar.
+T  
+R     1                                                             A LOT
+R     2                                                             SOME
+R     3                                                             NOT TOO MUCH
+R     4                                                             NOTHING AT ALL
+R     5                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  26
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q Q54                            FLD  [3767]         --> [180]
+T  
+T Now, I am going to read you some things that could be said about soft drinks and other beverages.  For each one, please tell me before this survey how much you have seen, read, or heard about that item over the last several months - ANSWERFROM(T2Q45,1,1), ANSWERFROM(T2Q45,2,1), ANSWERFROM(T2Q45,3,1), or ANSWERFROM(T2Q45,4,1).
+T  
+T DATAFROM(0.1)
+T  
+T 54. A plastic beverage bottle can be remade into many new products.
+T  
+R     1                                                             A LOT
+R     2                                                             SOME
+R     3                                                             NOT TOO MUCH
+R     4                                                             NOTHING AT ALL
+R     5                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+Q Q55                            FLD  [3772]         --> [181]
+T  
+T Now, I am going to read you some things that could be said about soft drinks and other beverages.  For each one, please tell me before this survey how much you have seen, read, or heard about that item over the last several months - ANSWERFROM(T2Q45,1,1), ANSWERFROM(T2Q45,2,1), ANSWERFROM(T2Q45,3,1), or ANSWERFROM(T2Q45,4,1).
+T  
+T DATAFROM(0.1)
+T  
+T 55. Soft drinks and sugar-sweetened beverages are the number one source of added sugars in the American diet.
+T  
+R     1                                                             A LOT
+R     2                                                             SOME
+R     3                                                             NOT TOO MUCH
+R     4                                                             NOTHING AT ALL
+R     5                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+Q Q56                            FLD  [3777]         --> [182]
+T  
+T Now, I am going to read you some things that could be said about soft drinks and other beverages.  For each one, please tell me before this survey how much you have seen, read, or heard about that item over the last several months - ANSWERFROM(T2Q45,1,1), ANSWERFROM(T2Q45,2,1), ANSWERFROM(T2Q45,3,1), or ANSWERFROM(T2Q45,4,1).
+T  
+T DATAFROM(0.1)
+T  
+T 56. Soft drinks contribute significantly to diabetes.
+T  
+R     1                                                             A LOT
+R     2                                                             SOME
+R     3                                                             NOT TOO MUCH
+R     4                                                             NOTHING AT ALL
+R     5                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  27
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q Q57                            FLD  [3782]         --> [183]
+T  
+T Now, I am going to read you some things that could be said about soft drinks and other beverages.  For each one, please tell me before this survey how much you have seen, read, or heard about that item over the last several months - ANSWERFROM(T2Q45,1,1), ANSWERFROM(T2Q45,2,1), ANSWERFROM(T2Q45,3,1), or ANSWERFROM(T2Q45,4,1).
+T  
+T DATAFROM(0.1)
+T  
+T 57. Some cities and counties across the country are completely banning and eliminating the use of plastic straws and plastic bags.
+T  
+R     1                                                             A LOT
+R     2                                                             SOME
+R     3                                                             NOT TOO MUCH
+R     4                                                             NOTHING AT ALL
+R     5                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+Q Q58                            FLD  [3787]         --> [184]
+T  
+T Now, I am going to read you some things that could be said about soft drinks and other beverages.  For each one, please tell me before this survey how much you have seen, read, or heard about that item over the last several months - ANSWERFROM(T2Q45,1,1), ANSWERFROM(T2Q45,2,1), ANSWERFROM(T2Q45,3,1), or ANSWERFROM(T2Q45,4,1).
+T  
+T DATAFROM(0.1)
+T  
+T 58. A report by the U.S. Dietary Guidelines Advisory Committee recommends Americans limit their intake of added sugars to 200 calories a day and replace sugary drinks with water instead of no- and low-calorie beverages.
+T  
+R     1                                                             A LOT
+R     2                                                             SOME
+R     3                                                             NOT TOO MUCH
+R     4                                                             NOTHING AT ALL
+R     5                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+Q Q59                            FLD  [3797]         --> [185]
+T  
+T 59. Thinking about the food you eat... is SUGAR...
+T  
+R     1                                                             Something you actively try to include in your diet
+R     2                                                             Something you actively try to avoid
+R     3                                                             Something you do not think about either way?
+R     4                                                             DON'T KNOW (DO NOT READ)
+R     5                                                             REFUSED (DO NOT READ)
+
+Q Q60                            FLD  [3803]         --> [186]
+T  
+T 60. And, do you try to avoid sugar because of...
+T  
+R     1                                                             Concerns about your HEALTH
+R     2                                                             Concerns about your WEIGHT
+R     3                                                             SOME OTHER REASON (DO NOT READ)
+R     4                                                             BOTH (DO NOT READ)
+R     5                                                             NEITHER (DO NOT READ)
+R     6                                                             DON'T KNOW (DO NOT READ)
+R     7                                                             REFUSED (DO NOT READ)
+
+
+
+
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  28
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q Q61                            FLD  [3818]         --> [187]
+T  
+T Moving on again... Now for each of the following statements, please tell me, whether yes or no, if this applies to you personally...
+T  
+T DATAFROM(0.1)
+T  
+T 61. You regularly pay more to buy organic fruits and vegetables.
+T  
+R     1                                                             YES
+R     2                                                             NO
+R     3                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+Q Q62                            FLD  [3823]         --> [188]
+T  
+T Moving on again... Now for each of the following statements, please tell me, whether yes or no, if this applies to you personally...
+T  
+T DATAFROM(0.1)
+T  
+T 62. You regularly recycle things that can be recycled, like cans, plastic bottles and newspapers.
+T  
+R     1                                                             YES
+R     2                                                             NO
+R     3                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+Q Q63                            FLD  [3828]         --> [189]
+T  
+T Moving on again... Now for each of the following statements, please tell me, whether yes or no, if this applies to you personally...
+T  
+T DATAFROM(0.1)
+T  
+T 63. You are a supporter of environmental groups.
+T  
+R     1                                                             YES
+R     2                                                             NO
+R     3                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+Q Q64                            FLD  [3833]         --> [190]
+T  
+T Moving on again... Now for each of the following statements, please tell me, whether yes or no, if this applies to you personally...
+T  
+T DATAFROM(0.1)
+T  
+T 64. You have access to curbside or convenient recycling.
+T  
+R     1                                                             YES
+R     2                                                             NO
+R     3                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+
+
+
+
+
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  29
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q Q65                            FLD  [3838]         --> [191]
+T  
+T Moving on again... Now for each of the following statements, please tell me, whether yes or no, if this applies to you personally...
+T  
+T DATAFROM(0.1)
+T  
+T 65. You or someone in your immediate household has been diagnosed with diabetes.
+T  
+R     1                                                             YES
+R     2                                                             NO
+R     3                                                             DON'T KNOW/REFUSED (DO NOT READ)
+
+Q Q66                            FLD  [3849]         --> [192]
+T  
+T 66. Do you use any online social media networks like YouTube, Facebook, Twitter, Instagram, TikTok, Snapchat and Pinterest?
+T  
+T (IF YES, THEN ASK:) How often do you use social networking specifically to find and share news and opinions about sugar substitutes like aspartame (as-per-teym)... ANSWERFROM(T2Q66,1,1), ANSWERFROM(T2Q66,2,1), ANSWERFROM(T2Q66,3,1), ANSWERFROM(T2Q66,4,1), or ANSWERFROM(T2Q66,5,1)?
+T  
+R     1                                                             Yes, Everyday for information about sugar substitutes like aspartame
+R     2                                                             Yes, Weekly
+R     3                                                             Yes, A few times a month at most
+R     4                                                             Yes, Less than once a month
+R     5                                                             Yes, Never for information about sugar substitutes like aspartame
+R     6                                                             No, Do not use social media at all
+R     7                                                             DON'T KNOW (DO NOT READ)
+R     8                                                             REFUSED (DO NOT READ)
+
+Q ED67                           FLD  [4035]         --> [193]
+T  
+T Are you finished editing OE67?
+T  
+R     1                                                             OE67 ANSWERED
+R     2                                                             No
+
+Q QD4A                           FLD  [3868]         --> [194]
+T  
+T D4A. In politics today, do you consider yourself... ANSWERFROM(T2QD4A,1,1) ANSWERFROM(T2QD4A,4,1) an independent or something else?
+T  
+T (IF REPUBLICAN/DEMOCRAT, ASK:) Would you call yourself a STRONG (Republican/Democrat) or a NOT-SO-STRONG (Republican/Democrat)?
+T  
+T (IF SOMETHING ELSE/INDEPENDENT, ASK:) Do you think of yourself as closer to the ANSWERFROM(T2QD4A,2,1) party ...or... the ANSWERFROM(T2QD4A,3,1) party?
+T  
+R     1                                                             STRONG REPUBLICAN
+R     2                                                             NOT-SO-STRONG REPUBLICAN
+R     3                                                             LEAN TO REPUBLICANS
+R     4                                                             SOMETHING ELSE/INDEPENDENT
+R     5                                                             LEAN TO DEMOCRATS
+R     6                                                             NOT-SO-STRONG DEMOCRAT
+R     7                                                             STRONG DEMOCRAT
+R     8                                                             DON'T KNOW (DO NOT READ)
+R     9                                                             REFUSED (DO NOT READ)
+
+
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  30
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q QD5E                           FLD  [3883]         --> [195]
+T  
+T D5E. And do you consider yourself to be...
+T  
+R     1                                                             A Conservative
+R     2                                                             A Moderate
+R     3                                                             A Liberal
+R     4                                                             A Libertarian
+R     5                                                             A Progressive
+R     6                                                             UNDECIDED/NOT SURE (DO NOT READ)
+R     7                                                             REFUSED (DO NOT READ)
+
+Q QD8A                           FLD  [3891]         --> [196]
+T  
+T D8A. Regardless of how you feel now, for whom did you vote in the 2020 (twenty twenty) Presidential election... ANSWERFROM(T2QD8A,1,1) or ANSWERFROM(T2QD8A,2,1)?
+T  
+R     1                                                             DONALD TRUMP
+R     2                                                             JOE BIDEN
+R     3                                                             SOMEONE ELSE/THIRD PARTY CANDIDATE (DO NOT READ)
+R     4                                                             DID NOT VOTE (DO NOT READ)
+R     5                                                             DON'T KNOW/DON'T RECALL (DO NOT READ)
+R     6                                                             REFUSED (DO NOT READ)
+
+Q QD15                           FLD  [3896]         --> [197]
+T  
+T D15. Are you currently single and never married, unmarried and living with a partner, married, separated, widowed, or divorced?
+T  
+R     1                                                             SINGLE
+R     2                                                             UNMARRIED AND LIVING WITH A PARTNER
+R     3                                                             MARRIED
+R     4                                                             SEPARATED
+R     5                                                             WIDOWED
+R     6                                                             DIVORCED
+R     7                                                             OTHER (DO NOT READ)
+R     8                                                             DON'T KNOW (DO NOT READ)
+R     9                                                             REFUSED (DO NOT READ)
+
+Q QD16A                          FLD  [3901]         --> [198]
+T  
+T D16A. Do you have children at home under the age of 18 you are responsible for raising who are not yet in college or the workforce?
+T  
+R     1                                                             YES
+R     2                                                             NO
+R     3                                                             DON'T KNOW (DO NOT READ)
+R     4                                                             REFUSED (DO NOT READ)
+
+Q QD16C                          NUM  [3906.3]       --> [199.3]
+X Range=0-17                 Exceptions=999
+T  
+T D16C. What is the age of your oldest child under 18 living at home?
+T  
+T ENTER NUMBER (0-17):                         (999 = DON'T KNOW/REFUSED)
+
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  31
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q QD9C                           FLD  [3914]         --> [202]
+T  
+T D9C. How would you describe your economic circumstances...
+T  
+R     1                                                             LOW INCOME
+R     2                                                             WORKING CLASS
+R     3                                                             MIDDLE CLASS
+R     4                                                             UPPER MIDDLE CLASS
+R     5                                                             WELL-TO-DO
+R     6                                                             DON'T KNOW (DO NOT READ)
+R     7                                                             REFUSED (DO NOT READ)
+
+Q QD9B                           FLD  [3920]         --> [203]
+T  
+T D9B. For statistical purposes only, what is your total annual HOUSEHOLD income...
+T  
+R     1                                                             Less than $40,000 (LESS THAN FORTY THOUSAND DOLLARS)
+R     2                                                             $40,000 - $75,000 (FORTY THOUSAND DOLLARS TO SEVENTY FIVE THOUSAND DOLLARS)
+R     3                                                             $75,000 - $100,000 (SEVENTY FIVE THOUSAND DOLLARS TO ONE HUNDRED THOUSAND DOLLARS)
+R     4                                                             $100,000 - $150,000 (ONE HUNDRED THOUSAND DOLLARS TO ONE HUNDRED FIFTY THOUSAND DOLLARS)
+R     5                                                             $150,000 or more (ONE HUNDRED FIFTY THOUSAND DOLLARS OR MORE)
+R     6                                                             DON'T KNOW (DO NOT READ)
+R     7                                                             REFUSED (DO NOT READ)
+
+Q QZ                             NUM  [3925.5]       --> [204.5]
+X Range=1000-99999           Exceptions=
+T  
+T Z. And, could you please tell me your zip code?
+T  
+T ENTER ZIP:            (99998= DON'T KNOW/99999 = REFUSED)
+
+Q QD2B                           FLD  [3935]         --> [209]
+T  
+T Finally...
+T  
+T D2B. Which one of the following best describes you...
+T  
+R     1                                                             A man
+R     2                                                             A woman
+R     3                                                             You identify yourself in some other way
+R     4                                                             Refused (DO NOT READ)
+
+Q EMPID2                         VAR  [3984.4]       --> [210.4]
+T EMPID2
+
+Q GROUP                          VAR  [176.3]        --> [214.3]
+T GROUP
+
+Q REGION                         VAR  [182.2]        --> [217.2]
+T REGION
+
+
+
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  32
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q SDATE                          NUM  [64.8]         --> [219.8]
+X Range=0-99999999           Exceptions=
+T SDATE
+
+Q SDAY                           NUM  [78]           --> [227]
+X Range=0-9                  Exceptions=
+T SDAY
+
+Q SJULIAN                        NUM  [79.3]         --> [228.3]
+X Range=0-999                Exceptions=
+T SJULIAN
+
+Q EMP_GEND                       VAR  [128]          --> [231]
+T EMPLOYEE GENDER
+
+Q EMP_ETH                        FLD  [131.2]        --> [232.2]
+T EMPLOYEE ETHNICITY
+R    01                                                             AFRICAN AMERICAN OR BLACK
+R    02                                                             WHITE
+R    03                                                             HISPANIC AMERICAN OR LATINO
+R    04                                                             ASIAN AMERICAN
+R    05                                                             OTHER
+R    06                                                             DECLINE TO STATE
+
+Q FDATE                          NUM  [3966.8]       --> [234.8]
+X Range=0-99999999           Exceptions=
+T FDATE
+
+Q FDAY                           NUM  [3980]         --> [242]
+X Range=0-9                  Exceptions=
+T FDAY
+
+Q FJULIAN                        NUM  [3981.3]       --> [243.3]
+X Range=0-999                Exceptions=
+T FJULIAN
+
+Q TIME                           NUM  [4044.2]       --> [246.2]
+X Range=0-99                 Exceptions=
+T TIME
+
+Q REP                            VAR  [173.3]        --> [248.3]
+T REP
+
+Q MARKET_VARIABLE                VAR  [179.3]        --> [251.3]
+T MARKET_VARIABLE
+
+Q SAMP_SEX                       VAR  [187]          --> [254]
+T SAMP_SEX
+
+Q PARTYCOD                       VAR  [188]          --> [255]
+T PARTYCOD
+
+
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  33
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q SAMP_AGE                       VAR  [239.3]        --> [256.3]
+T SAMP_AGE
+
+Q AGE_GRUP                       VAR  [242.2]        --> [259.2]
+T AGE_GRUP
+
+Q PHONE_TYPE                     VAR  [246]          --> [261]
+T PHONE_TYPE
+
+Q TARGETED_SAMPLE                VAR  [247]          --> [262]
+T TARGETED_SAMPLE
+
+Q PRTSN_SCORE_1                  VAR  [249.2]        --> [263.2]
+T PRTSN_SCORE_1
+
+Q PRTSN_SCORE_2                  VAR  [251.2]        --> [265.2]
+T PRTSN_SCORE_2
+
+Q PRTSN_SCORE_3                  VAR  [253.2]        --> [267.2]
+T PRTSN_SCORE_3
+
+Q PRTSN_SCORE_4                  VAR  [255.2]        --> [269.2]
+T PRTSN_SCORE_4
+
+Q VOTER_TURNOUT_1                VAR  [257]          --> [271]
+T VOTER_TURNOUT_1
+
+Q VOTER_TURNOUT_2                VAR  [258]          --> [272]
+T VOTER_TURNOUT_2
+
+Q VOTER_TURNOUT_3                VAR  [259]          --> [273]
+T VOTER_TURNOUT_3
+
+Q VOTER_TURNOUT_4                VAR  [260]          --> [274]
+T VOTER_TURNOUT_4
+
+Q SAMP_SEX_1                     VAR  [261]          --> [275]
+T SAMP_SEX_1
+
+Q SAMP_SEX_2                     VAR  [262]          --> [276]
+T SAMP_SEX_2
+
+Q SAMP_SEX_3                     VAR  [263]          --> [277]
+T SAMP_SEX_3
+
+Q SAMP_SEX_4                     VAR  [264]          --> [278]
+T SAMP_SEX_4
+
+Q AGE_GRUP_1                     VAR  [265.2]        --> [279.2]
+T AGE_GRUP_1
+
+Q AGE_GRUP_2                     VAR  [267.2]        --> [281.2]
+T AGE_GRUP_2
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  34
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q AGE_GRUP_3                     VAR  [269.2]        --> [283.2]
+T AGE_GRUP_3
+
+Q AGE_GRUP_4                     VAR  [271.2]        --> [285.2]
+T AGE_GRUP_4
+
+Q PARTYCOD_1                     VAR  [273]          --> [287]
+T PARTYCOD_1
+
+Q PARTYCOD_2                     VAR  [274]          --> [288]
+T PARTYCOD_2
+
+Q PARTYCOD_3                     VAR  [275]          --> [289]
+T PARTYCOD_3
+
+Q PARTYCOD_4                     VAR  [276]          --> [290]
+T PARTYCOD_4
+
+Q ETH_CODE_1                     VAR  [277.2]        --> [291.2]
+T ETH_CODE_1
+
+Q ETH_CODE_2                     VAR  [279.2]        --> [293.2]
+T ETH_CODE_2
+
+Q ETH_CODE_3                     VAR  [281.2]        --> [295.2]
+T ETH_CODE_3
+
+Q ETH_CODE_4                     VAR  [283.2]        --> [297.2]
+T ETH_CODE_4
+
+Q CHECK_HH_DUPS                  VAR  [555.10]       --> [299.10]
+T CHECK_HH_DUPS
+
+Q SAMP_PHONE_TYPE                VAR  [575]          --> [309]
+T SAMP_PHONE_TYPE
+
+Q VEND_PHONE_TYPE                VAR  [576]          --> [310]
+T VEND_PHONE_TYPE
+
+Q PHONE_RELIABILITY              VAR  [577]          --> [311]
+T PHONE_RELIABILITY
+
+Q CELL_RELIABILITY               VAR  [588]          --> [312]
+T CELL_RELIABILITY
+
+Q R_CITY                         VAR  [699.35]       --> [313.35]
+T R_CITY
+
+Q R_STATE                        VAR  [734.2]        --> [348.2]
+T R_STATE
+
+Q R_ZIP                          VAR  [736.5]        --> [350.5]
+T R_ZIP
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  35
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q R_ZIP4                         VAR  [741.4]        --> [355.4]
+T R_ZIP4
+
+Q M_CITY                         VAR  [855.35]       --> [359.35]
+T M_CITY
+
+Q M_STATE                        VAR  [890.2]        --> [394.2]
+T M_STATE
+
+Q M_ZIP                          VAR  [892.5]        --> [396.5]
+T M_ZIP
+
+Q M_ZIP4                         VAR  [897.4]        --> [401.4]
+T M_ZIP4
+
+Q STATE                          VAR  [901.2]        --> [405.2]
+T STATE
+
+Q FIPS_ST                        VAR  [903.2]        --> [407.2]
+T FIPS_ST
+
+Q FIPS_CNTY                      VAR  [905.3]        --> [409.3]
+T FIPS_CNTY
+
+Q COUNTY                         VAR  [908.25]       --> [412.25]
+T COUNTY
+
+Q FIPS                           VAR  [933.5]        --> [437.5]
+T FIPS
+
+Q CD                             VAR  [938.2]        --> [442.2]
+T CD
+
+Q CD_2022                        VAR  [940.2]        --> [444.2]
+T CD_2022
+
+Q CD_2020                        VAR  [942.2]        --> [446.2]
+T CD_2020
+
+Q SD                             VAR  [944.3]        --> [448.3]
+T SD
+
+Q SD_2022                        VAR  [947.3]        --> [451.3]
+T SD_2022
+
+Q SD_2020                        VAR  [950.3]        --> [454.3]
+T SD_2020
+
+Q HD                             VAR  [953.3]        --> [457.3]
+T HD
+
+Q HD_2022                        VAR  [956.3]        --> [460.3]
+T HD_2022
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  36
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q HD_2020                        VAR  [959.3]        --> [463.3]
+T HD_2020
+
+Q DMA_CODE                       VAR  [962.3]        --> [466.3]
+T DMA_CODE
+
+Q DMA_NAME                       VAR  [965.40]       --> [469.40]
+T DMA_NAME
+
+Q PREC_NO                        VAR  [1005.30]      --> [509.30]
+T PREC_NO
+
+Q PRECINCT                       VAR  [1035.70]      --> [539.70]
+T PRECINCT
+
+Q PREC_SPLIT                     VAR  [1105.30]      --> [609.30]
+T PREC_SPLIT
+
+Q MUNI_TWP_CODE                  VAR  [1135.10]      --> [639.10]
+T MUNI_TWP_CODE
+
+Q MUNI_TWP_NAME                  VAR  [1145.35]      --> [649.35]
+T MUNI_TWP_NAME
+
+Q TOWNSHIP                       VAR  [1180.30]      --> [684.30]
+T TOWNSHIP
+
+Q WARD                           VAR  [1210.30]      --> [714.30]
+T WARD
+
+Q GENDER_1                       VAR  [1385]         --> [744]
+T GENDER_1
+
+Q AGE_RANGE_1                    VAR  [1386]         --> [745]
+T AGE_RANGE_1
+
+Q DOB_1                          VAR  [1387.10]      --> [746.10]
+T DOB_1
+
+Q DOB_YEAR_1                     VAR  [1397.4]       --> [756.4]
+T DOB_YEAR_1
+
+Q COALESCE_RACE_1                VAR  [1401.15]      --> [760.15]
+T COALESCE_RACE_1
+
+Q ETHNICITY_1                    VAR  [1416.30]      --> [775.30]
+T ETHNICITY_1
+
+Q RACE_1                         VAR  [1446.30]      --> [805.30]
+T RACE_1
+
+Q MARITAL_STATUS_1               VAR  [1476]         --> [835]
+T MARITAL_STATUS_1
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  37
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q PRESENCE_CHILD_1               VAR  [1477]         --> [836]
+T PRESENCE_CHILD_1
+
+Q REG_RACE_1                     VAR  [1478]         --> [837]
+T REG_RACE_1
+
+Q LANGUAGE_1                     VAR  [1479.2]       --> [838.2]
+T LANGUAGE_1
+
+Q MOD_EDU_1                      VAR  [1481.10]      --> [840.10]
+T MOD_EDU_1
+
+Q REG_DATE_1                     VAR  [1491.10]      --> [850.10]
+T REG_DATE_1
+
+Q REG_STATUS_1                   VAR  [1501.5]       --> [860.5]
+T REG_STATUS_1
+
+Q ABSENTEE_1                     VAR  [1506.5]       --> [865.5]
+T ABSENTEE_1
+
+Q ACTIVE_INACTIVE_1              VAR  [1511]         --> [870]
+T ACTIVE_INACTIVE_1
+
+Q PARTY_1                        VAR  [1512.30]      --> [871.30]
+T PARTY_1
+
+Q PRIM_BALLOT_1                  VAR  [1542]         --> [901]
+T PRIM_BALLOT_1
+
+Q LAST_4_GEN_1                   VAR  [1543]         --> [902]
+T LAST_4_GEN_1
+
+Q LAST_4_PR_1                    VAR  [1544]         --> [903]
+T LAST_4_PR_1
+
+Q POLITICAL_AFFINITY_1           VAR  [1545.10]      --> [904.10]
+T POLITICAL_AFFINITY_1
+
+Q VOTING_PROPENSITY_1            VAR  [1555.10]      --> [914.10]
+T VOTING_PROPENSITY_1
+
+Q VH2022PR_1                     VAR  [1565]         --> [924]
+T VH2022PR_1
+
+Q VH2021GE_1                     VAR  [1566]         --> [925]
+T VH2021GE_1
+
+Q VH2021PR_1                     VAR  [1567]         --> [926]
+T VH2021PR_1
+
+Q VH2020GE_1                     VAR  [1568]         --> [927]
+T VH2020GE_1
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  38
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q VH2020PR_1                     VAR  [1569]         --> [928]
+T VH2020PR_1
+
+Q VH2020PP_1                     VAR  [1570]         --> [929]
+T VH2020PP_1
+
+Q VH2019GE_1                     VAR  [1571]         --> [930]
+T VH2019GE_1
+
+Q VH2019PR_1                     VAR  [1572]         --> [931]
+T VH2019PR_1
+
+Q VH2018GE_1                     VAR  [1573]         --> [932]
+T VH2018GE_1
+
+Q VH2018PR_1                     VAR  [1574]         --> [933]
+T VH2018PR_1
+
+Q VH2017GE_1                     VAR  [1575]         --> [934]
+T VH2017GE_1
+
+Q VH2017PR_1                     VAR  [1576]         --> [935]
+T VH2017PR_1
+
+Q VH2016GE_1                     VAR  [1577]         --> [936]
+T VH2016GE_1
+
+Q VH2016PR_1                     VAR  [1578]         --> [937]
+T VH2016PR_1
+
+Q VH2016PP_1                     VAR  [1579]         --> [938]
+T VH2016PP_1
+
+Q VH2015GE_1                     VAR  [1580]         --> [939]
+T VH2015GE_1
+
+Q VH2015PR_1                     VAR  [1581]         --> [940]
+T VH2015PR_1
+
+Q VH2014GE_1                     VAR  [1582]         --> [941]
+T VH2014GE_1
+
+Q VH2014PR_1                     VAR  [1583]         --> [942]
+T VH2014PR_1
+
+Q LIBERAL_POLITICS_1             VAR  [1584]         --> [943]
+T LIBERAL_POLITICS_1
+
+Q CONSRV_POLITICS_1              VAR  [1585]         --> [944]
+T CONSRV_POLITICS_1
+
+Q TAX_1                          VAR  [1586.10]      --> [945.10]
+T TAX_1
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  39
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q SPENDING_1                     VAR  [1596.10]      --> [955.10]
+T SPENDING_1
+
+Q ENERGY_1                       VAR  [1606.10]      --> [965.10]
+T ENERGY_1
+
+Q ENTHUSIASM_1                   VAR  [1616.10]      --> [975.10]
+T ENTHUSIASM_1
+
+Q TRUMP_APRV_1                   VAR  [1626.10]      --> [985.10]
+T TRUMP_APRV_1
+
+Q BIDEN_APRV_1                   VAR  [1636.10]      --> [995.10]
+T BIDEN_APRV_1
+
+Q CORD_CUTTER_1                  VAR  [1646.10]      --> [1005.10]
+T CORD_CUTTER_1
+
+Q ABEV_PRFRNCE_1                 VAR  [1656.10]      --> [1015.10]
+T ABEV_PRFRNCE_1
+
+Q GENDER_2                       VAR  [1806]         --> [1025]
+T GENDER_2
+
+Q AGE_RANGE_2                    VAR  [1807]         --> [1026]
+T AGE_RANGE_2
+
+Q DOB_2                          VAR  [1808.10]      --> [1027.10]
+T DOB_2
+
+Q DOB_YEAR_2                     VAR  [1818.4]       --> [1037.4]
+T DOB_YEAR_2
+
+Q COALESCE_RACE_2                VAR  [1822.15]      --> [1041.15]
+T COALESCE_RACE_2
+
+Q ETHNICITY_2                    VAR  [1837.30]      --> [1056.30]
+T ETHNICITY_2
+
+Q RACE_2                         VAR  [1867.30]      --> [1086.30]
+T RACE_2
+
+Q MARITAL_STATUS_2               VAR  [1897]         --> [1116]
+T MARITAL_STATUS_2
+
+Q PRESENCE_CHILD_2               VAR  [1898]         --> [1117]
+T PRESENCE_CHILD_2
+
+Q REG_RACE_2                     VAR  [1899]         --> [1118]
+T REG_RACE_2
+
+Q LANGUAGE_2                     VAR  [1900.2]       --> [1119.2]
+T LANGUAGE_2
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  40
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q MOD_EDU_2                      VAR  [1902.10]      --> [1121.10]
+T MOD_EDU_2
+
+Q REG_DATE_2                     VAR  [1912.10]      --> [1131.10]
+T REG_DATE_2
+
+Q REG_STATUS_2                   VAR  [1922.5]       --> [1141.5]
+T REG_STATUS_2
+
+Q ABSENTEE_2                     VAR  [1927.5]       --> [1146.5]
+T ABSENTEE_2
+
+Q ACTIVE_INACTIVE_2              VAR  [1932]         --> [1151]
+T ACTIVE_INACTIVE_2
+
+Q PARTY_2                        VAR  [1933.30]      --> [1152.30]
+T PARTY_2
+
+Q PRIM_BALLOT_2                  VAR  [1963]         --> [1182]
+T PRIM_BALLOT_2
+
+Q LAST_4_GEN_2                   VAR  [1964]         --> [1183]
+T LAST_4_GEN_2
+
+Q LAST_4_PR_2                    VAR  [1965]         --> [1184]
+T LAST_4_PR_2
+
+Q POLITICAL_AFFINITY_2           VAR  [1966.10]      --> [1185.10]
+T POLITICAL_AFFINITY_2
+
+Q VOTING_PROPENSITY_2            VAR  [1976.10]      --> [1195.10]
+T VOTING_PROPENSITY_2
+
+Q VH2022PR_2                     VAR  [1986]         --> [1205]
+T VH2022PR_2
+
+Q VH2021GE_2                     VAR  [1987]         --> [1206]
+T VH2021GE_2
+
+Q VH2021PR_2                     VAR  [1988]         --> [1207]
+T VH2021PR_2
+
+Q VH2020GE_2                     VAR  [1989]         --> [1208]
+T VH2020GE_2
+
+Q VH2020PR_2                     VAR  [1990]         --> [1209]
+T VH2020PR_2
+
+Q VH2020PP_2                     VAR  [1991]         --> [1210]
+T VH2020PP_2
+
+Q VH2019GE_2                     VAR  [1992]         --> [1211]
+T VH2019GE_2
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  41
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q VH2019PR_2                     VAR  [1993]         --> [1212]
+T VH2019PR_2
+
+Q VH2018GE_2                     VAR  [1994]         --> [1213]
+T VH2018GE_2
+
+Q VH2018PR_2                     VAR  [1995]         --> [1214]
+T VH2018PR_2
+
+Q VH2017GE_2                     VAR  [1996]         --> [1215]
+T VH2017GE_2
+
+Q VH2017PR_2                     VAR  [1997]         --> [1216]
+T VH2017PR_2
+
+Q VH2016GE_2                     VAR  [1998]         --> [1217]
+T VH2016GE_2
+
+Q VH2016PR_2                     VAR  [1999]         --> [1218]
+T VH2016PR_2
+
+Q VH2016PP_2                     VAR  [2000]         --> [1219]
+T VH2016PP_2
+
+Q VH2015GE_2                     VAR  [2001]         --> [1220]
+T VH2015GE_2
+
+Q VH2015PR_2                     VAR  [2002]         --> [1221]
+T VH2015PR_2
+
+Q VH2014GE_2                     VAR  [2003]         --> [1222]
+T VH2014GE_2
+
+Q VH2014PR_2                     VAR  [2004]         --> [1223]
+T VH2014PR_2
+
+Q LIBERAL_POLITICS_2             VAR  [2005]         --> [1224]
+T LIBERAL_POLITICS_2
+
+Q CONSRV_POLITICS_2              VAR  [2006]         --> [1225]
+T CONSRV_POLITICS_2
+
+Q TAX_2                          VAR  [2007.10]      --> [1226.10]
+T TAX_2
+
+Q SPENDING_2                     VAR  [2017.10]      --> [1236.10]
+T SPENDING_2
+
+Q ENERGY_2                       VAR  [2027.10]      --> [1246.10]
+T ENERGY_2
+
+Q ENTHUSIASM_2                   VAR  [2037.10]      --> [1256.10]
+T ENTHUSIASM_2
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  42
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q TRUMP_APRV_2                   VAR  [2047.10]      --> [1266.10]
+T TRUMP_APRV_2
+
+Q BIDEN_APRV_2                   VAR  [2057.10]      --> [1276.10]
+T BIDEN_APRV_2
+
+Q CORD_CUTTER_2                  VAR  [2067.10]      --> [1286.10]
+T CORD_CUTTER_2
+
+Q ABEV_PRFRNCE_2                 VAR  [2077.10]      --> [1296.10]
+T ABEV_PRFRNCE_2
+
+Q GENDER_3                       VAR  [2227]         --> [1306]
+T GENDER_3
+
+Q AGE_RANGE_3                    VAR  [2228]         --> [1307]
+T AGE_RANGE_3
+
+Q DOB_3                          VAR  [2229.10]      --> [1308.10]
+T DOB_3
+
+Q DOB_YEAR_3                     VAR  [2239.4]       --> [1318.4]
+T DOB_YEAR_3
+
+Q COALESCE_RACE_3                VAR  [2243.15]      --> [1322.15]
+T COALESCE_RACE_3
+
+Q ETHNICITY_3                    VAR  [2258.30]      --> [1337.30]
+T ETHNICITY_3
+
+Q RACE_3                         VAR  [2288.30]      --> [1367.30]
+T RACE_3
+
+Q MARITAL_STATUS_3               VAR  [2318]         --> [1397]
+T MARITAL_STATUS_3
+
+Q PRESENCE_CHILD_3               VAR  [2319]         --> [1398]
+T PRESENCE_CHILD_3
+
+Q REG_RACE_3                     VAR  [2320]         --> [1399]
+T REG_RACE_3
+
+Q LANGUAGE_3                     VAR  [2321.2]       --> [1400.2]
+T LANGUAGE_3
+
+Q MOD_EDU_3                      VAR  [2323.10]      --> [1402.10]
+T MOD_EDU_3
+
+Q REG_DATE_3                     VAR  [2333.10]      --> [1412.10]
+T REG_DATE_3
+
+Q REG_STATUS_3                   VAR  [2343.5]       --> [1422.5]
+T REG_STATUS_3
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  43
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q ABSENTEE_3                     VAR  [2348.5]       --> [1427.5]
+T ABSENTEE_3
+
+Q ACTIVE_INACTIVE_3              VAR  [2353]         --> [1432]
+T ACTIVE_INACTIVE_3
+
+Q PARTY_3                        VAR  [2354.30]      --> [1433.30]
+T PARTY_3
+
+Q PRIM_BALLOT_3                  VAR  [2384]         --> [1463]
+T PRIM_BALLOT_3
+
+Q LAST_4_GEN_3                   VAR  [2385]         --> [1464]
+T LAST_4_GEN_3
+
+Q LAST_4_PR_3                    VAR  [2386]         --> [1465]
+T LAST_4_PR_3
+
+Q POLITICAL_AFFINITY_3           VAR  [2387.10]      --> [1466.10]
+T POLITICAL_AFFINITY_3
+
+Q VOTING_PROPENSITY_3            VAR  [2397.10]      --> [1476.10]
+T VOTING_PROPENSITY_3
+
+Q VH2022PR_3                     VAR  [2407]         --> [1486]
+T VH2022PR_3
+
+Q VH2021GE_3                     VAR  [2408]         --> [1487]
+T VH2021GE_3
+
+Q VH2021PR_3                     VAR  [2409]         --> [1488]
+T VH2021PR_3
+
+Q VH2020GE_3                     VAR  [2410]         --> [1489]
+T VH2020GE_3
+
+Q VH2020PR_3                     VAR  [2411]         --> [1490]
+T VH2020PR_3
+
+Q VH2020PP_3                     VAR  [2412]         --> [1491]
+T VH2020PP_3
+
+Q VH2019GE_3                     VAR  [2413]         --> [1492]
+T VH2019GE_3
+
+Q VH2019PR_3                     VAR  [2414]         --> [1493]
+T VH2019PR_3
+
+Q VH2018GE_3                     VAR  [2415]         --> [1494]
+T VH2018GE_3
+
+Q VH2018PR_3                     VAR  [2416]         --> [1495]
+T VH2018PR_3
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  44
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q VH2017GE_3                     VAR  [2417]         --> [1496]
+T VH2017GE_3
+
+Q VH2017PR_3                     VAR  [2418]         --> [1497]
+T VH2017PR_3
+
+Q VH2016GE_3                     VAR  [2419]         --> [1498]
+T VH2016GE_3
+
+Q VH2016PR_3                     VAR  [2420]         --> [1499]
+T VH2016PR_3
+
+Q VH2016PP_3                     VAR  [2421]         --> [1500]
+T VH2016PP_3
+
+Q VH2015GE_3                     VAR  [2422]         --> [1501]
+T VH2015GE_3
+
+Q VH2015PR_3                     VAR  [2423]         --> [1502]
+T VH2015PR_3
+
+Q VH2014GE_3                     VAR  [2424]         --> [1503]
+T VH2014GE_3
+
+Q VH2014PR_3                     VAR  [2425]         --> [1504]
+T VH2014PR_3
+
+Q LIBERAL_POLITICS_3             VAR  [2426]         --> [1505]
+T LIBERAL_POLITICS_3
+
+Q CONSRV_POLITICS_3              VAR  [2427]         --> [1506]
+T CONSRV_POLITICS_3
+
+Q TAX_3                          VAR  [2428.10]      --> [1507.10]
+T TAX_3
+
+Q SPENDING_3                     VAR  [2438.10]      --> [1517.10]
+T SPENDING_3
+
+Q ENERGY_3                       VAR  [2448.10]      --> [1527.10]
+T ENERGY_3
+
+Q ENTHUSIASM_3                   VAR  [2458.10]      --> [1537.10]
+T ENTHUSIASM_3
+
+Q TRUMP_APRV_3                   VAR  [2468.10]      --> [1547.10]
+T TRUMP_APRV_3
+
+Q BIDEN_APRV_3                   VAR  [2478.10]      --> [1557.10]
+T BIDEN_APRV_3
+
+Q CORD_CUTTER_3                  VAR  [2488.10]      --> [1567.10]
+T CORD_CUTTER_3
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  45
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q ABEV_PRFRNCE_3                 VAR  [2498.10]      --> [1577.10]
+T ABEV_PRFRNCE_3
+
+Q GENDER_4                       VAR  [2648]         --> [1587]
+T GENDER_4
+
+Q AGE_RANGE_4                    VAR  [2649]         --> [1588]
+T AGE_RANGE_4
+
+Q DOB_4                          VAR  [2650.10]      --> [1589.10]
+T DOB_4
+
+Q DOB_YEAR_4                     VAR  [2660.4]       --> [1599.4]
+T DOB_YEAR_4
+
+Q COALESCE_RACE_4                VAR  [2664.15]      --> [1603.15]
+T COALESCE_RACE_4
+
+Q ETHNICITY_4                    VAR  [2679.30]      --> [1618.30]
+T ETHNICITY_4
+
+Q RACE_4                         VAR  [2709.30]      --> [1648.30]
+T RACE_4
+
+Q MARITAL_STATUS_4               VAR  [2739]         --> [1678]
+T MARITAL_STATUS_4
+
+Q PRESENCE_CHILD_4               VAR  [2740]         --> [1679]
+T PRESENCE_CHILD_4
+
+Q REG_RACE_4                     VAR  [2741]         --> [1680]
+T REG_RACE_4
+
+Q LANGUAGE_4                     VAR  [2742.2]       --> [1681.2]
+T LANGUAGE_4
+
+Q MOD_EDU_4                      VAR  [2744.10]      --> [1683.10]
+T MOD_EDU_4
+
+Q REG_DATE_4                     VAR  [2754.10]      --> [1693.10]
+T REG_DATE_4
+
+Q REG_STATUS_4                   VAR  [2764.5]       --> [1703.5]
+T REG_STATUS_4
+
+Q ABSENTEE_4                     VAR  [2769.5]       --> [1708.5]
+T ABSENTEE_4
+
+Q ACTIVE_INACTIVE_4              VAR  [2774]         --> [1713]
+T ACTIVE_INACTIVE_4
+
+Q PARTY_4                        VAR  [2775.30]      --> [1714.30]
+T PARTY_4
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  46
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q PRIM_BALLOT_4                  VAR  [2805]         --> [1744]
+T PRIM_BALLOT_4
+
+Q LAST_4_GEN_4                   VAR  [2806]         --> [1745]
+T LAST_4_GEN_4
+
+Q LAST_4_PR_4                    VAR  [2807]         --> [1746]
+T LAST_4_PR_4
+
+Q POLITICAL_AFFINITY_4           VAR  [2808.10]      --> [1747.10]
+T POLITICAL_AFFINITY_4
+
+Q VOTING_PROPENSITY_4            VAR  [2818.10]      --> [1757.10]
+T VOTING_PROPENSITY_4
+
+Q VH2022PR_4                     VAR  [2828]         --> [1767]
+T VH2022PR_4
+
+Q VH2021GE_4                     VAR  [2829]         --> [1768]
+T VH2021GE_4
+
+Q VH2021PR_4                     VAR  [2830]         --> [1769]
+T VH2021PR_4
+
+Q VH2020GE_4                     VAR  [2831]         --> [1770]
+T VH2020GE_4
+
+Q VH2020PR_4                     VAR  [2832]         --> [1771]
+T VH2020PR_4
+
+Q VH2020PP_4                     VAR  [2833]         --> [1772]
+T VH2020PP_4
+
+Q VH2019GE_4                     VAR  [2834]         --> [1773]
+T VH2019GE_4
+
+Q VH2019PR_4                     VAR  [2835]         --> [1774]
+T VH2019PR_4
+
+Q VH2018GE_4                     VAR  [2836]         --> [1775]
+T VH2018GE_4
+
+Q VH2018PR_4                     VAR  [2837]         --> [1776]
+T VH2018PR_4
+
+Q VH2017GE_4                     VAR  [2838]         --> [1777]
+T VH2017GE_4
+
+Q VH2017PR_4                     VAR  [2839]         --> [1778]
+T VH2017PR_4
+
+Q VH2016GE_4                     VAR  [2840]         --> [1779]
+T VH2016GE_4
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  47
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q VH2016PR_4                     VAR  [2841]         --> [1780]
+T VH2016PR_4
+
+Q VH2016PP_4                     VAR  [2842]         --> [1781]
+T VH2016PP_4
+
+Q VH2015GE_4                     VAR  [2843]         --> [1782]
+T VH2015GE_4
+
+Q VH2015PR_4                     VAR  [2844]         --> [1783]
+T VH2015PR_4
+
+Q VH2014GE_4                     VAR  [2845]         --> [1784]
+T VH2014GE_4
+
+Q VH2014PR_4                     VAR  [2846]         --> [1785]
+T VH2014PR_4
+
+Q LIBERAL_POLITICS_4             VAR  [2847]         --> [1786]
+T LIBERAL_POLITICS_4
+
+Q CONSRV_POLITICS_4              VAR  [2848]         --> [1787]
+T CONSRV_POLITICS_4
+
+Q TAX_4                          VAR  [2849.10]      --> [1788.10]
+T TAX_4
+
+Q SPENDING_4                     VAR  [2859.10]      --> [1798.10]
+T SPENDING_4
+
+Q ENERGY_4                       VAR  [2869.10]      --> [1808.10]
+T ENERGY_4
+
+Q ENTHUSIASM_4                   VAR  [2879.10]      --> [1818.10]
+T ENTHUSIASM_4
+
+Q TRUMP_APRV_4                   VAR  [2889.10]      --> [1828.10]
+T TRUMP_APRV_4
+
+Q BIDEN_APRV_4                   VAR  [2899.10]      --> [1838.10]
+T BIDEN_APRV_4
+
+Q CORD_CUTTER_4                  VAR  [2909.10]      --> [1848.10]
+T CORD_CUTTER_4
+
+Q ABEV_PRFRNCE_4                 VAR  [2919.10]      --> [1858.10]
+T ABEV_PRFRNCE_4
+
+Q RESMDATE                       VAR  [4066.10]      --> [1868.10]
+T RESMDATE
+
+Q EMPLOYID                       VAR  [82.4]         --> [1878.4]
+T EMPLOYID
+
+
+R= Resp OldPunch                       New Code               Text
+p0157.rfl: Old record length=32000    New record length=1882          Page  48
+Q= Label                         Type FromLocation       ToLocation      RefmtType    MaxResp
+Output SPSS specs
+
+Q PHONECID                       VAR  [86]           --> [1882]
+T PHONECID
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+R= Resp OldPunch                       New Code               Text
