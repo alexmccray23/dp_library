@@ -74,7 +74,7 @@ fn load_counters(filename: &str) -> IoResult<Vec<Counter>> {
                     });
                 }
                 Err(e) => {
-                    eprintln!("Warning: Failed to parse logic for {}: {}", label, e);
+                    eprintln!("Warning: Failed to parse logic for {label}: {e}");
                 }
             }
         }
@@ -91,53 +91,56 @@ fn extract_case_id(line: &str) -> &str {
     }
 }
 
-fn main() -> IoResult<()> {
-    let args = Args::parse();
-
+fn determine_file_paths(args: &Args) -> (String, String, String) {
     // Determine counters file
     let counters_filename = args.counters_file
-        .unwrap_or_else(|| "counters.chk".to_string());
+        .as_ref()
+        .map_or_else(|| "counters.chk".to_string(), std::clone::Clone::clone);
 
     // Determine layout file
-    let layout_filename = match args.layout_file {
-        Some(file) => file,
-        None => find_file_with_extension(".", &[".rfl"])
+    let layout_filename = args.layout_file.as_ref().map_or_else(|| {
+        find_file_with_extension(".", &[".rfl"])
             .unwrap_or_else(|| {
                 eprintln!("Could not find rfl file in the current directory");
                 std::process::exit(1);
             })
-    };
+    }, std::clone::Clone::clone);
 
     // Determine data file
-    let data_filename = match args.data_file {
-        Some(file) => file,
-        None => {
-            find_file_with_extension(".", &[".fin"])
-                .or_else(|| find_file_with_extension(".", &[".rft"]))
-                .unwrap_or_else(|| {
-                    eprintln!("Could not find fin or rft file in the current directory");
-                    std::process::exit(1);
-                })
-        }
-    };
+    let data_filename = args.data_file.as_ref().map_or_else(|| {
+        find_file_with_extension(".", &[".fin"])
+            .or_else(|| find_file_with_extension(".", &[".rft"]))
+            .unwrap_or_else(|| {
+                eprintln!("Could not find fin or rft file in the current directory");
+                std::process::exit(1);
+            })
+    }, std::clone::Clone::clone);
+
+    (counters_filename, layout_filename, data_filename)
+}
+
+fn main() -> IoResult<()> {
+    let args = Args::parse();
+
+    let (counters_filename, layout_filename, data_filename) = determine_file_paths(&args);
 
     // Verify files exist
     if !Path::new(&counters_filename).exists() {
-        eprintln!("{} not found in the current directory", counters_filename);
+        eprintln!("{counters_filename} not found in the current directory");
         std::process::exit(1);
     }
     if !Path::new(&layout_filename).exists() {
-        eprintln!("{} not found in the current directory", layout_filename);
+        eprintln!("{layout_filename} not found in the current directory");
         std::process::exit(1);
     }
     if !Path::new(&data_filename).exists() {
-        eprintln!("{} not found in the current directory", data_filename);
+        eprintln!("{data_filename} not found in the current directory");
         std::process::exit(1);
     }
 
-    println!("Using data file     {}", data_filename);
-    println!("Using layout file   {}", layout_filename);
-    println!("Using counters file {}", counters_filename);
+    println!("Using data file     {data_filename}");
+    println!("Using layout file   {layout_filename}");
+    println!("Using counters file {counters_filename}");
 
     // Load files
     let mut counters = load_counters(&counters_filename)?;
@@ -201,18 +204,18 @@ fn main() -> IoResult<()> {
     println!("Label:                LOGIC LABEL");
     for counter in &counters {
         if questions.contains_key(&counter.label) {
-            let output = if counter.logic_count != counter.response_count {
-                format!("{:<21}{:6}{:7}<--", 
-                        format!("{}:", counter.label),
-                        counter.logic_count,
-                        counter.response_count)
-            } else {
+            let output = if counter.logic_count == counter.response_count {
                 format!("{:<21}{:6}{:7}", 
                         format!("{}:", counter.label),
                         counter.logic_count,
                         counter.response_count)
+            } else {
+                format!("{:<21}{:6}{:7}<--", 
+                        format!("{}:", counter.label),
+                        counter.logic_count,
+                        counter.response_count)
             };
-            println!("{}", output);
+            println!("{output}");
         } else {
             println!("{:<21}{:6}", 
                      format!("{}:", counter.label),

@@ -43,11 +43,12 @@ struct FrequencyStats {
     valid_cases: usize,
 }
 
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_precision_loss)]
 fn calculate_percentage(count: usize, total: usize) -> u32 {
     if total == 0 {
         0
     } else {
-        ((count as f64 / total as f64) * 100.0 + 0.5).floor() as u32
+        (count as f64 / total as f64).mul_add(100.0, 0.5).floor() as u32
     }
 }
 
@@ -73,11 +74,7 @@ fn print_question_frequency(
         let count = stats.punch_counts.get(punch_code).unwrap_or(&0);
         let percentage = calculate_percentage(*count, total_lines);
         
-        println!("{:>4} {:<64} {:>5} {:>3}%", 
-                 punch_code, 
-                 response_text,
-                 count,
-                 percentage);
+        println!("{punch_code:>4} {response_text:<64} {count:>5} {percentage:>3}%");
         
         total_responses += count;
     }
@@ -103,40 +100,32 @@ fn main() -> IoResult<()> {
     let args = Args::parse();
 
     // Determine layout file
-    let layout_filename = match args.layout_file {
-        Some(file) => file,
-        None => find_file_with_extension(".", &[".rfl"])
+    let layout_filename = args.layout_file.map_or_else(|| find_file_with_extension(".", &[".rfl"])
             .unwrap_or_else(|| {
                 eprintln!("Could not find rfl file in the current directory");
                 std::process::exit(1);
-            })
-    };
+            }), |file| file);
 
     // Determine data file
-    let data_filename = match args.data_file {
-        Some(file) => file,
-        None => {
-            find_file_with_extension(".", &[".fin"])
+    let data_filename = args.data_file.map_or_else(|| find_file_with_extension(".", &[".fin"])
                 .or_else(|| find_file_with_extension(".", &[".rft"]))
                 .unwrap_or_else(|| {
                     eprintln!("Could not find fin or rft file in the current directory");
                     std::process::exit(1);
-                })
-        }
-    };
+                }), |file| file);
 
     // Verify files exist
     if !Path::new(&layout_filename).exists() {
-        eprintln!("{} not found in the current directory", layout_filename);
+        eprintln!("{layout_filename} not found in the current directory");
         std::process::exit(1);
     }
     if !Path::new(&data_filename).exists() {
-        eprintln!("{} not found in the current directory", data_filename);
+        eprintln!("{data_filename} not found in the current directory");
         std::process::exit(1);
     }
 
-    println!("Using data file     {}", data_filename);
-    println!("Using layout file   {}", layout_filename);
+    println!("Using data file     {data_filename}");
+    println!("Using layout file   {layout_filename}");
 
     // Load RFL file
     let rfl_file = RflFile::from_file(&layout_filename)?;
@@ -155,7 +144,7 @@ fn main() -> IoResult<()> {
         for question_label in &args.questions {
             let question_label = question_label.to_uppercase();
             if !questions_map.contains_key(&question_label) {
-                eprintln!("Could not find question label {} in RFL.", question_label);
+                eprintln!("Could not find question label {question_label} in RFL.");
                 std::process::exit(1);
             }
             questions_to_process.push(question_label);

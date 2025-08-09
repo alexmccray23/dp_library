@@ -697,15 +697,15 @@ mod tests {
 
         // Test with both conditions true
         let response_line = "105";
-        assert!(logic.evaluate(&questions, &response_line).unwrap());
+        assert!(logic.evaluate(&questions, response_line).unwrap());
 
         // Test with first condition false
         let response_line = "205";
-        assert!(!logic.evaluate(&questions, &response_line).unwrap());
+        assert!(!logic.evaluate(&questions, response_line).unwrap());
 
         // Test with second condition false
         let response_line = "106";
-        assert!(!logic.evaluate(&questions, &response_line).unwrap());
+        assert!(!logic.evaluate(&questions, response_line).unwrap());
     }
 
     #[test]
@@ -729,19 +729,19 @@ mod tests {
 
         // Test with first value
         let response_line = "1";
-        assert!(logic.evaluate(&questions, &response_line).unwrap());
+        assert!(logic.evaluate(&questions, response_line).unwrap());
 
         // Test with second value
         let response_line = "2";
-        assert!(logic.evaluate(&questions, &response_line).unwrap());
+        assert!(logic.evaluate(&questions, response_line).unwrap());
 
         // Test with third value
         let response_line = "3";
-        assert!(logic.evaluate(&questions, &response_line).unwrap());
+        assert!(logic.evaluate(&questions, response_line).unwrap());
 
         // Test with non-matching value
         let response_line = "4";
-        assert!(!logic.evaluate(&questions, &response_line).unwrap());
+        assert!(!logic.evaluate(&questions, response_line).unwrap());
     }
 
     #[test]
@@ -765,22 +765,22 @@ mod tests {
 
         // Test with value in range
         let response_line = "12";
-        assert!(logic.evaluate(&questions, &response_line).unwrap());
+        assert!(logic.evaluate(&questions, response_line).unwrap());
 
         // Test with value at start of range
         let response_line = "10";
-        assert!(logic.evaluate(&questions, &response_line).unwrap());
+        assert!(logic.evaluate(&questions, response_line).unwrap());
 
         // Test with value at end of range
         let response_line = "15";
-        assert!(logic.evaluate(&questions, &response_line).unwrap());
+        assert!(logic.evaluate(&questions, response_line).unwrap());
 
         // Test with value below range
         let response_line = "09";
-        assert!(!logic.evaluate(&questions, &response_line).unwrap());
+        assert!(!logic.evaluate(&questions, response_line).unwrap());
 
         // Test with value above range
         let response_line = "16";
-        assert!(!logic.evaluate(&questions, &response_line).unwrap());
+        assert!(!logic.evaluate(&questions, response_line).unwrap());
     }
 }
