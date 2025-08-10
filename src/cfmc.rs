@@ -214,26 +214,20 @@ impl CfmcLogic {
                 '"' => in_quotes = !in_quotes,
                 '(' if !in_quotes => {
                     level += 1;
-                    if level < 0 {
-                        return Err(format!("Unbalanced parentheses: too many closing ')' at position {}", i));
-                    }
                 }
                 ')' if !in_quotes => {
                     level -= 1;
                     if level < 0 {
-                        return Err(format!("Unbalanced parentheses: too many closing ')' at position {}", i));
+                        return Err(format!("Unbalanced parentheses. Too many closing ')' at position {i}"));
                     }
                 }
                 '[' if !in_quotes => {
                     bracket_level += 1;
-                    if bracket_level < 0 {
-                        return Err(format!("Unbalanced brackets: too many closing ']' at position {}", i));
-                    }
                 }
                 ']' if !in_quotes => {
                     bracket_level -= 1;
                     if bracket_level < 0 {
-                        return Err(format!("Unbalanced brackets: too many closing ']' at position {}", i));
+                        return Err(format!("Unbalanced brackets. Too many closing ']' at position {i}"));
                     }
                 }
                 _ => {}
@@ -260,10 +254,10 @@ impl CfmcLogic {
 
         // Final check for unclosed parentheses/brackets
         if level > 0 {
-            return Err(format!("Unbalanced parentheses: {} unclosed '(' found", level));
+            return Err(format!("Unbalanced parentheses. {level} unclosed '(' found"));
         }
         if bracket_level > 0 {
-            return Err(format!("Unbalanced brackets: {} unclosed '[' found", bracket_level));
+            return Err(format!("Unbalanced brackets. {bracket_level} unclosed '[' found"));
         }
         if in_quotes {
             return Err("Unclosed quote found".to_string());
@@ -994,7 +988,7 @@ mod tests {
     fn test_parse_plus_expression() {
         let logic = CfmcLogic::parse("[Q02+0.1$]=\"A\"").unwrap();
         let output = logic.to_string();
-        println!("Parsed: {}", output);
+        println!("Parsed: {output}");
         assert_eq!(output, "Q02+0.1(A)");
     }
 
@@ -1021,13 +1015,13 @@ mod tests {
         // Test with matching response - Q02 has "ABC", taking 1 char from position 0 should give "A"
         let response_line = "ABC";
         let result = logic.evaluate(&questions, response_line);
-        println!("Q02+0.1=\"A\" with response 'ABC': {:?}", result);
+        println!("Q02+0.1=\"A\" with response 'ABC': {result:?}");
         assert!(result.unwrap());
 
         // Test with non-matching response 
         let response_line = "XBC";
         let result = logic.evaluate(&questions, response_line);
-        println!("Q02+0.1=\"A\" with response 'XBC': {:?}", result);
+        println!("Q02+0.1=\"A\" with response 'XBC': {result:?}");
         assert!(!result.unwrap());
     }
 }
