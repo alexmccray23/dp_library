@@ -186,7 +186,7 @@ impl RflQuestion {
 
     fn remove_question_prefix(text: &str) -> String {
         // Remove patterns like "A1.", "Q17.", "D16C.", etc.
-        regex::Regex::new(r"^[A-Za-z]*\d*[A-Za-z]*\.?\s*")
+        regex::Regex::new(r"^[A-Za-z]*\d+[A-Za-z]*\.?\s*")
             .map_or_else(|_| text.to_string(), |re| re.replace(text, "").to_string())
     }
 

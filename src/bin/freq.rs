@@ -61,7 +61,7 @@ fn print_question_frequency(
     
     let main_text = question.main_text();
     if !main_text.is_empty() {
-        println!("{}", main_text.join(" "));
+        println!("{}\n", main_text.join("\n\n"));
     }
 
     let mut total_responses = 0;

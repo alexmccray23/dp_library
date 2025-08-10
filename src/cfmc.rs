@@ -21,7 +21,7 @@ pub enum CfmcOperator {
     NumItems,   // NUMITEMS
     IsBlank,    // ^^B
     IsNotBlank, // ^^NB
-    Contains,   // #
+    // Contains,   // #
     Plus,       // +
 
     // Value construction
@@ -262,10 +262,10 @@ impl CfmcLogic {
             Some((CfmcOperator::Less, 1))
         } else if remaining.starts_with('>') {
             Some((CfmcOperator::Greater, 1))
-        } else if remaining.starts_with('=') || remaining.starts_with('$') {
+        } else if remaining.starts_with('=') || remaining.starts_with('$') || remaining.starts_with('#') {
             Some((CfmcOperator::Equal, 1))
-        } else if remaining.starts_with('#') {
-            Some((CfmcOperator::Contains, 1))
+        // } else if remaining.starts_with('#') {
+        //     Some((CfmcOperator::Contains, 1))
         } else if remaining.starts_with('+') {
             Some((CfmcOperator::Plus, 1))
         } else if remaining.starts_with(',') {
@@ -286,8 +286,8 @@ impl CfmcLogic {
             | CfmcOperator::Less
             | CfmcOperator::Greater
             | CfmcOperator::LessEqual
-            | CfmcOperator::GreaterEqual
-            | CfmcOperator::Contains => 30,
+            | CfmcOperator::GreaterEqual => 30,
+            // | CfmcOperator::Contains => 30,
             CfmcOperator::Plus => 40,
             CfmcOperator::Comma | CfmcOperator::Dash => 50,
             CfmcOperator::Not

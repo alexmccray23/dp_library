@@ -10,7 +10,8 @@ cargo build          # Build the library
 cargo test           # Run all tests
 cargo test --lib     # Run library tests only
 cargo test test_name # Run a specific test
-cargo clippy         # Run linter
+cargo nag            # Run linter
+cargo fixnags        # Apply `cargo nag` lints
 cargo fmt            # Format code
 ```
 
@@ -87,3 +88,26 @@ The project includes two command-line tools ported from Perl:
 - RFL files may contain relocated data positions in format `[original] --> [actual]` 
 - The parser uses the actual position (after `-->`) for data extraction
 - Four-digit study numbers are used as file naming convention (e.g., `p0157.rfl` for study 0157)
+
+## Future Development TODOs
+
+### Port perl/bin/banners.pl (Complex - Dedicated Session Recommended)
+**Objective**: Create `banners` binary for processing Excel-based crosstab reports
+
+**Requirements:**
+- **New dependencies**: Add `calamine` for Excel file processing, `serde` for data serialization
+- **New module**: `crosstabs.rs` - Port `perl/lib/crosstabsclass.pm` functionality
+- **Excel processing**: Parse .xls files containing survey crosstab specifications
+- **Banner output**: Generate formatted banner tables with column alignment and numbering (TABLE 901, 902, etc.)
+- **Multi-file handling**: Process Excel, RFL, text output, and various footer file types (nbc, nmb, r2r, pos)
+
+**Complexity**: High - involves Excel parsing, complex formatting, and new architectural components
+
+**Usage Pattern**: `banners input.xls layout.rfl output.txt [footer_type]`
+
+**Implementation Notes**: 
+- Examine Excel file structure to understand expected sheet/column layout
+- Design crosstabs data model for survey analysis
+- Implement specific banner formatting with column positioning (`&CC` syntax)
+- Handle table numbering and underline generation
+- Consider using `calamine::Reader` for cross-platform Excel support
