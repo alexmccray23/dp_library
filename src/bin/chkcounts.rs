@@ -84,7 +84,11 @@ fn load_counters(filename: &str) -> IoResult<Vec<Counter>> {
                     });
                 }
                 Err(e) => {
-                    eprintln!("Warning: Failed to parse logic for {label}: {e}");
+                    eprintln!("Error: Failed to parse logic for counter '{}' in {}:", label, filename);
+                    eprintln!("  Expression: {}", logic_str);
+                    eprintln!("  Problem: {}", e);
+                    eprintln!("  Please fix the syntax error and try again.");
+                    std::process::exit(1);
                 }
             }
         }

@@ -5,7 +5,7 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CfmcOperator {
     // Comparison operators
-    Equal,        // = or $
+    Equal,        // = or $ or #
     NotEqual,     // <>
     Less,         // <
     Greater,      // >
@@ -21,7 +21,6 @@ pub enum CfmcOperator {
     NumItems,   // NUMITEMS
     IsBlank,    // ^^B
     IsNotBlank, // ^^NB
-    // Contains,   // #
     Plus, // +
 
     // Value construction
@@ -131,7 +130,7 @@ impl CfmcLogic {
         }
 
         // Find the main operator by scanning with precedence
-        if let Some((op, pos)) = Self::find_main_operator(&trimmed) {
+        if let Some((op, pos)) = Self::find_main_operator(&trimmed)? {
             match op {
                 CfmcOperator::Not | CfmcOperator::NumItems => {
                     // Unary operators (prefix)
@@ -199,7 +198,7 @@ impl CfmcLogic {
         }
     }
 
-    fn find_main_operator(logic: &str) -> Option<(CfmcOperator, usize)> {
+    fn find_main_operator(logic: &str) -> Result<Option<(CfmcOperator, usize)>, String> {
         let mut level = 0;
         let mut bracket_level = 0;
         let mut in_quotes = false;
@@ -213,10 +212,30 @@ impl CfmcLogic {
         while i < chars.len() {
             match chars[i] {
                 '"' => in_quotes = !in_quotes,
-                '(' if !in_quotes => level += 1,
-                ')' if !in_quotes => level -= 1,
-                '[' if !in_quotes => bracket_level += 1,
-                ']' if !in_quotes => bracket_level -= 1,
+                '(' if !in_quotes => {
+                    level += 1;
+                    if level < 0 {
+                        return Err(format!("Unbalanced parentheses: too many closing ')' at position {}", i));
+                    }
+                }
+                ')' if !in_quotes => {
+                    level -= 1;
+                    if level < 0 {
+                        return Err(format!("Unbalanced parentheses: too many closing ')' at position {}", i));
+                    }
+                }
+                '[' if !in_quotes => {
+                    bracket_level += 1;
+                    if bracket_level < 0 {
+                        return Err(format!("Unbalanced brackets: too many closing ']' at position {}", i));
+                    }
+                }
+                ']' if !in_quotes => {
+                    bracket_level -= 1;
+                    if bracket_level < 0 {
+                        return Err(format!("Unbalanced brackets: too many closing ']' at position {}", i));
+                    }
+                }
                 _ => {}
             }
 
@@ -239,7 +258,18 @@ impl CfmcLogic {
             }
         }
 
-        best_operator.map(|op| (op, best_position))
+        // Final check for unclosed parentheses/brackets
+        if level > 0 {
+            return Err(format!("Unbalanced parentheses: {} unclosed '(' found", level));
+        }
+        if bracket_level > 0 {
+            return Err(format!("Unbalanced brackets: {} unclosed '[' found", bracket_level));
+        }
+        if in_quotes {
+            return Err("Unclosed quote found".to_string());
+        }
+
+        Ok(best_operator.map(|op| (op, best_position)))
     }
 
     fn match_operator_at(chars: &[char], pos: usize) -> Option<(CfmcOperator, usize)> {
@@ -277,8 +307,6 @@ impl CfmcLogic {
             || remaining.starts_with('#')
         {
             Some((CfmcOperator::Equal, 1))
-        // } else if remaining.starts_with('#') {
-        //     Some((CfmcOperator::Contains, 1))
         } else if remaining.starts_with('+') {
             Some((CfmcOperator::Plus, 1))
         } else if remaining.starts_with(',') {
@@ -300,7 +328,6 @@ impl CfmcLogic {
             | CfmcOperator::Greater
             | CfmcOperator::LessEqual
             | CfmcOperator::GreaterEqual => 30,
-            // | CfmcOperator::Contains => 30,
             CfmcOperator::Plus => 40,
             CfmcOperator::Comma | CfmcOperator::Dash => 50,
             CfmcOperator::Not
@@ -326,10 +353,14 @@ impl CfmcLogic {
     fn parse_leaf(text: &str) -> CfmcNode {
         let trimmed = text.trim();
 
-        // Remove quotes if present
-        let cleaned = if (trimmed.starts_with('"') && trimmed.ends_with('"'))
-            || (trimmed.starts_with('(') && trimmed.ends_with(')'))
-        {
+        // If it has quotes, treat it as a literal regardless of content
+        if trimmed.starts_with('"') && trimmed.ends_with('"') {
+            let cleaned = &trimmed[1..trimmed.len() - 1];
+            return CfmcNode::Literal(cleaned.to_string());
+        }
+
+        // Remove parentheses if present
+        let cleaned = if trimmed.starts_with('(') && trimmed.ends_with(')') {
             &trimmed[1..trimmed.len() - 1]
         } else {
             trimmed
@@ -403,7 +434,8 @@ impl CfmcLogic {
                 }
 
                 CfmcOperator::Plus => {
-                    self.evaluate_substring(left, right, questions, response_line)
+                    // Plus operator returns substring - this shouldn't be evaluated as boolean directly
+                    Err("Plus operator should not be used as a standalone boolean expression".to_string())
                 }
 
                 CfmcOperator::Less
@@ -442,7 +474,7 @@ impl CfmcLogic {
         questions: &HashMap<String, RflQuestion>,
         response_line: &str,
     ) -> Result<bool, String> {
-        // Get responses from left side (should be a question)
+        // Get responses from left side
         let left_responses = match left {
             CfmcNode::QuestionLabel(label) => {
                 if let Some(question) = questions.get(label) {
@@ -451,7 +483,15 @@ impl CfmcLogic {
                     return Err(format!("Question {label} not found in RFL"));
                 }
             }
-            _ => return Err("Left side of equality must be a question label".to_string()),
+            CfmcNode::Binary { 
+                operator: CfmcOperator::Plus, 
+                left: plus_left, 
+                right: plus_right 
+            } => {
+                // Handle Plus operation on left side - extract substring
+                Self::evaluate_substring(plus_left, plus_right, questions, response_line)?
+            }
+            _ => return Err("Left side of equality must be a question label or plus expression".to_string()),
         };
 
         // Get expected value(s) from right side
@@ -514,12 +554,11 @@ impl CfmcLogic {
     }
 
     fn evaluate_substring(
-        &self,
         left: &CfmcNode,
         right: &CfmcNode,
         questions: &HashMap<String, RflQuestion>,
         response_line: &str,
-    ) -> Result<bool, String> {
+    ) -> Result<Vec<String>, String> {
         // Get responses from left side (should be a question)
         let left_responses = match left {
             CfmcNode::QuestionLabel(label) => {
@@ -532,15 +571,28 @@ impl CfmcLogic {
             _ => return Err("Left side of plus sign must be a question label".to_string()),
         };
 
-        // Get expected value(s) from right side
-        if let Some((col, width)) = response_line.split_once('.') {
-            let col = col.parse::<usize>().unwrap_or_default();
-            let width = width.parse::<usize>().unwrap_or_default();
-            let expected_values = self.get_value_list(right, questions, &response_line[col..col+width])?;
-            // Check if any response matches any expected value
-            return Ok(Self::responses_intersect(&left_responses, &expected_values));
+        // Get column.width specification from right side - should be a literal like "0.1"
+        let CfmcNode::Literal(spec) = right else {
+            return Err("Right side of plus operator must be a column.width specification".to_string());
+        };
+
+        // Parse column.width specification
+        if let Some((col_str, width_str)) = spec.split_once('.') {
+            let col = col_str.parse::<usize>().map_err(|_| format!("Invalid column number: {col_str}"))?;
+            let width = width_str.parse::<usize>().map_err(|_| format!("Invalid width: {width_str}"))?;
+            
+            // Concatenate all responses from the question and extract substring
+            let concatenated = left_responses.join("");
+            if col + width <= concatenated.len() {
+                let substring = concatenated[col..col + width].to_string();
+                Ok(vec![substring])
+            } else {
+                // If the substring extends beyond available data, return empty result
+                Ok(vec![String::new()])
+            }
+        } else {
+            Err(format!("Invalid column.width specification: {spec}"))
         }
-        Ok(false)
     }
 
 
@@ -580,6 +632,14 @@ impl CfmcLogic {
                 } else {
                     Err("Range operator requires single values on both sides".to_string())
                 }
+            }
+            CfmcNode::Binary {
+                operator: CfmcOperator::Plus,
+                left,
+                right,
+            } => {
+                // Handle Plus operation - extract substring
+                Self::evaluate_substring(left, right, questions, response_line)
             }
             _ => Err(format!("Cannot get value list from node type {node:?}")),
         }
@@ -663,6 +723,7 @@ impl CfmcLogic {
                     CfmcOperator::Equal => "=",
                     CfmcOperator::And => " AND ",
                     CfmcOperator::Or => " OR ",
+                    CfmcOperator::Plus => "+",
                     CfmcOperator::Comma => ",",
                     CfmcOperator::Dash => "-",
                     _ => &format!(" {operator:?} "),
@@ -767,7 +828,7 @@ mod tests {
     fn test_parse_num_expression() {
         let logic = CfmcLogic::parse("[QD1#18-110]").unwrap();
         let output = logic.to_string();
-        assert_eq!(output, "QD1 Contains 18-110");
+        assert_eq!(output, "QD1(18-110)");
     }
 
     #[test]
@@ -927,5 +988,46 @@ mod tests {
         // Test with value above range
         let response_line = "16";
         assert!(!logic.evaluate(&questions, response_line).unwrap());
+    }
+
+    #[test]
+    fn test_parse_plus_expression() {
+        let logic = CfmcLogic::parse("[Q02+0.1$]=\"A\"").unwrap();
+        let output = logic.to_string();
+        println!("Parsed: {}", output);
+        assert_eq!(output, "Q02+0.1(A)");
+    }
+
+    #[test]
+    fn test_evaluate_plus_expression() {
+        let mut questions = HashMap::new();
+        let q02_question = RflQuestion {
+            label: "Q02".to_string(),
+            start_col: 1,
+            width: 3,  // Make room for 3 characters
+            question_type: QuestionType::Fld,
+            max_responses: 1,
+            text_lines: Vec::new(),
+            response_codes: HashMap::new(),
+            min_value: None,
+            max_value: None,
+            exceptions: Vec::new(),
+        };
+        questions.insert("Q02".to_string(), q02_question);
+
+        let logic = CfmcLogic::parse("Q02+0.1=\"A\"").unwrap();
+        println!("Parsed AST: {:#?}", logic.root);
+
+        // Test with matching response - Q02 has "ABC", taking 1 char from position 0 should give "A"
+        let response_line = "ABC";
+        let result = logic.evaluate(&questions, response_line);
+        println!("Q02+0.1=\"A\" with response 'ABC': {:?}", result);
+        assert!(result.unwrap());
+
+        // Test with non-matching response 
+        let response_line = "XBC";
+        let result = logic.evaluate(&questions, response_line);
+        println!("Q02+0.1=\"A\" with response 'XBC': {:?}", result);
+        assert!(!result.unwrap());
     }
 }

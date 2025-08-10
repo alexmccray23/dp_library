@@ -87,7 +87,7 @@ The project includes two command-line tools ported from Perl:
 ### Important Notes
 - RFL files may contain relocated data positions in format `[original] --> [actual]` 
 - The parser uses the actual position (after `-->`) for data extraction
-- Four-digit study numbers are used as file naming convention (e.g., `p0157.rfl` for study 0157)
+- Four-digit study numbers are used as file naming convention (e.g., `p0721.rfl` for study 0157)
 
 ## Future Development TODOs
 
