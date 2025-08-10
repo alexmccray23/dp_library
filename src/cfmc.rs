@@ -22,7 +22,7 @@ pub enum CfmcOperator {
     IsBlank,    // ^^B
     IsNotBlank, // ^^NB
     // Contains,   // #
-    Plus,       // +
+    Plus, // +
 
     // Value construction
     Comma, // ,
@@ -134,8 +134,18 @@ impl CfmcLogic {
         if let Some((op, pos)) = Self::find_main_operator(&trimmed) {
             match op {
                 CfmcOperator::Not | CfmcOperator::NumItems => {
-                    // Unary operators
+                    // Unary operators (prefix)
                     let operand_text = &trimmed[pos + Self::operator_length(&op)..];
+                    let operand = Self::parse_node(operand_text)?;
+                    Ok(CfmcNode::Unary {
+                        operator: op,
+                        operand: Box::new(operand),
+                    })
+                }
+
+                CfmcOperator::IsBlank | CfmcOperator::IsNotBlank => {
+                    // Unary operators (postfix)
+                    let operand_text = &trimmed[0..pos];
                     let operand = Self::parse_node(operand_text)?;
                     Ok(CfmcNode::Unary {
                         operator: op,
@@ -262,7 +272,10 @@ impl CfmcLogic {
             Some((CfmcOperator::Less, 1))
         } else if remaining.starts_with('>') {
             Some((CfmcOperator::Greater, 1))
-        } else if remaining.starts_with('=') || remaining.starts_with('$') || remaining.starts_with('#') {
+        } else if remaining.starts_with('=')
+            || remaining.starts_with('$')
+            || remaining.starts_with('#')
+        {
             Some((CfmcOperator::Equal, 1))
         // } else if remaining.starts_with('#') {
         //     Some((CfmcOperator::Contains, 1))
@@ -389,6 +402,17 @@ impl CfmcLogic {
                     self.evaluate_equality(left, right, questions, response_line)
                 }
 
+                CfmcOperator::Plus => {
+                    self.evaluate_substring(left, right, questions, response_line)
+                }
+
+                CfmcOperator::Less
+                | CfmcOperator::LessEqual
+                | CfmcOperator::Greater
+                | CfmcOperator::GreaterEqual => {
+                    self.evaluate_inequality(left, right, questions, response_line, operator)
+                }
+
                 _ => Err(format!("Binary operator {operator:?} not yet implemented")),
             },
 
@@ -396,6 +420,14 @@ impl CfmcLogic {
                 CfmcOperator::Not => {
                     let val = self.evaluate_node(operand, questions, response_line)?;
                     Ok(!val)
+                }
+
+                CfmcOperator::IsBlank => {
+                    Self::evaluate_blank(operand, questions, response_line)
+                }
+
+                CfmcOperator::IsNotBlank => {
+                    Ok(!Self::evaluate_blank(operand, questions, response_line)?)
                 }
 
                 _ => Err(format!("Unary operator {operator:?} not yet implemented")),
@@ -428,6 +460,90 @@ impl CfmcLogic {
         // Check if any response matches any expected value
         Ok(Self::responses_intersect(&left_responses, &expected_values))
     }
+
+    fn evaluate_inequality(
+        &self,
+        left: &CfmcNode,
+        right: &CfmcNode,
+        questions: &HashMap<String, RflQuestion>,
+        response_line: &str,
+        operator: &CfmcOperator,
+    ) -> Result<bool, String> {
+        // Get responses from left side (should be a question)
+        let left_responses = match left {
+            CfmcNode::QuestionLabel(label) => {
+                if let Some(question) = questions.get(label) {
+                    question.responses(response_line)
+                } else {
+                    return Err(format!("Question {label} not found in RFL"));
+                }
+            }
+            _ => return Err("Left side of equality must be a question label".to_string()),
+        };
+
+        // Get expected value(s) from right side
+        let expected_values = self.get_value_list(right, questions, response_line)?;
+
+        // Check if any response matches any expected value
+        Ok(Self::responses_comparison(
+            &left_responses,
+            &expected_values,
+            operator,
+        ))
+    }
+
+    fn evaluate_blank(
+        left: &CfmcNode,
+        questions: &HashMap<String, RflQuestion>,
+        response_line: &str,
+    ) -> Result<bool, String> {
+        // Get responses from left side (should be a question)
+        let left_responses = match left {
+            CfmcNode::QuestionLabel(label) => {
+                if let Some(question) = questions.get(label) {
+                    question.responses(response_line)
+                } else {
+                    return Err(format!("Question {label} not found in RFL"));
+                }
+            }
+            _ => return Err("Left side of equality must be a question label".to_string()),
+        };
+
+        // Check if any response matches any expected value
+        Ok(left_responses.join("").trim().is_empty())
+    }
+
+    fn evaluate_substring(
+        &self,
+        left: &CfmcNode,
+        right: &CfmcNode,
+        questions: &HashMap<String, RflQuestion>,
+        response_line: &str,
+    ) -> Result<bool, String> {
+        // Get responses from left side (should be a question)
+        let left_responses = match left {
+            CfmcNode::QuestionLabel(label) => {
+                if let Some(question) = questions.get(label) {
+                    question.responses(response_line)
+                } else {
+                    return Err(format!("Question {label} not found in RFL"));
+                }
+            }
+            _ => return Err("Left side of plus sign must be a question label".to_string()),
+        };
+
+        // Get expected value(s) from right side
+        if let Some((col, width)) = response_line.split_once('.') {
+            let col = col.parse::<usize>().unwrap_or_default();
+            let width = width.parse::<usize>().unwrap_or_default();
+            let expected_values = self.get_value_list(right, questions, &response_line[col..col+width])?;
+            // Check if any response matches any expected value
+            return Ok(Self::responses_intersect(&left_responses, &expected_values));
+        }
+        Ok(false)
+    }
+
+
 
     #[allow(clippy::only_used_in_recursion)]
     fn get_value_list(
@@ -492,6 +608,35 @@ impl CfmcLogic {
                     }
                 } else if response_trimmed == expected_trimmed {
                     return true;
+                }
+            }
+        }
+        false
+    }
+
+    fn responses_comparison(
+        responses: &[String],
+        expected: &[String],
+        operator: &CfmcOperator,
+    ) -> bool {
+        for response in responses {
+            let response_trimmed = response.trim();
+            if response_trimmed.is_empty() {
+                continue;
+            }
+            let response_val = response_trimmed.parse::<u32>().unwrap_or_default();
+
+            for expected_val in expected {
+                let expected_trimmed = expected_val.trim().to_uppercase();
+                if !expected_trimmed.is_empty() {
+                    let expected_val = expected_trimmed.parse::<u32>().unwrap_or_default();
+                    match operator {
+                        CfmcOperator::Less => return response_val < expected_val,
+                        CfmcOperator::LessEqual => return response_val <= expected_val,
+                        CfmcOperator::Greater => return response_val > expected_val,
+                        CfmcOperator::GreaterEqual => return response_val >= expected_val,
+                        _ => (),
+                    }
                 }
             }
         }

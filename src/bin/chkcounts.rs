@@ -23,7 +23,7 @@ struct Args {
 
 struct Counter {
     label: String,
-    logic: CfmcLogic,
+    logic: Option<CfmcLogic>,
     logic_count: usize,
     response_count: usize,
 }
@@ -63,12 +63,22 @@ fn load_counters(filename: &str) -> IoResult<Vec<Counter>> {
         if let Some(colon_pos) = line.find(':') {
             let label = line[..colon_pos].trim().to_string();
             let logic_str = line[colon_pos + 1..].trim();
+
+            if logic_str.is_empty() {
+                counters.push (Counter {
+                    label,
+                    logic: None,
+                    logic_count: 0,
+                    response_count: 0,
+                });
+                continue;
+            }
             
             match CfmcLogic::parse(logic_str) {
                 Ok(logic) => {
                     counters.push(Counter {
                         label,
-                        logic,
+                        logic: Some(logic),
                         logic_count: 0,
                         response_count: 0,
                     });
@@ -158,36 +168,38 @@ fn main() -> IoResult<()> {
         // Process each counter
         for counter in &mut counters {
             // Evaluate logic
-            match counter.logic.evaluate(questions, &line) {
-                Ok(matched) => {
-                    if matched {
-                        counter.logic_count += 1;
-                    }
-
-                    // Count responses if question exists in RFL
-                    if let Some(question) = questions.get(&counter.label) {
-                        let responses = question.responses(&line);
-                        let has_response = responses.iter().any(|r| !r.trim().is_empty());
-                        
-                        if has_response {
-                            counter.response_count += 1;
+            if let Some(ref logic) = counter.logic {
+                match logic.evaluate(questions, &line) {
+                    Ok(matched) => {
+                        if matched {
+                            counter.logic_count += 1;
                         }
 
-                        // Verbose output for mismatches
-                        if args.verbose {
-                            let case_id = extract_case_id(&line);
-                            if !matched && has_response {
-                                println!("Logic did not match for {} but response not blank on case id {}.", 
-                                         counter.label, case_id);
-                            } else if matched && !has_response {
-                                println!("Matched for {} but response blank on case id {}.", 
-                                         counter.label, case_id);
+                        // Count responses if question exists in RFL
+                        if let Some(question) = questions.get(&counter.label) {
+                            let responses = question.responses(&line);
+                            let has_response = responses.iter().any(|r| !r.trim().is_empty());
+
+                            if has_response {
+                                counter.response_count += 1;
+                            }
+
+                            // Verbose output for mismatches
+                            if args.verbose {
+                                let case_id = extract_case_id(&line);
+                                if !matched && has_response {
+                                    println!("Logic did not match for {} but response not blank on case id {}.", 
+                                        counter.label, case_id);
+                                } else if matched && !has_response {
+                                    println!("Matched for {} but response blank on case id {}.", 
+                                        counter.label, case_id);
+                                }
                             }
                         }
                     }
-                }
-                Err(e) => {
-                    eprintln!("Error in {}: {}", counter.label, e);
+                    Err(e) => {
+                        eprintln!("Error in {}: {}", counter.label, e);
+                    }
                 }
             }
         }

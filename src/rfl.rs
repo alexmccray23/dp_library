@@ -109,8 +109,8 @@ impl RflQuestion {
                 .map_err(|_| format!("Invalid width: {}", location_parts[1]))?;
 
             // Look for MAX= parameter
-            if let Some(max_part) = parts.iter().find(|p| p.starts_with("MAX=")) {
-                let max_str = max_part.strip_prefix("MAX=").unwrap();
+            if let Some(max_part) = parts.iter().find(|p| p.starts_with("Max=")) {
+                let max_str = max_part.strip_prefix("Max=").unwrap();
                 self.max_responses = max_str
                     .parse()
                     .map_err(|_| format!("Invalid max responses: {max_str}"))?;
@@ -173,6 +173,7 @@ impl RflQuestion {
                 if trimmed.starts_with("DATAFROM(0.1)")
                     || trimmed.is_empty()
                     || trimmed.contains("ENTER NUMBER")
+                    || (trimmed.starts_with('(') && trimmed.ends_with(')'))
                 {
                     None
                 } else {
