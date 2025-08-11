@@ -58,7 +58,7 @@ impl CfmcLogic {
     ///
     /// Returns an error if the expression syntax is invalid
     pub fn parse(expression: &str) -> Result<Self, String> {
-        let trimmed = Self::trim_expression(expression);
+        let trimmed = Self::trim_expression(&expression.to_uppercase());
         let root = Self::parse_node(&trimmed)?;
         Ok(Self { root })
     }

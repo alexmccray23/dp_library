@@ -4,7 +4,7 @@ use std::io::{BufRead, BufReader, Result as IoResult};
 use std::path::Path;
 
 use clap::Parser;
-use library::{RflFile, RflQuestion};
+use dp_library::{RflFile, RflQuestion};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]

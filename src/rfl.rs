@@ -7,6 +7,7 @@ pub enum QuestionType {
     Fld, // Field (categorical)
     Var, // Variable
     Num, // Numeric
+    Exp, // Expression
 }
 
 impl QuestionType {
@@ -15,6 +16,7 @@ impl QuestionType {
             "FLD" => Some(Self::Fld),
             "VAR" => Some(Self::Var),
             "NUM" => Some(Self::Num),
+            "EXP" => Some(Self::Exp),
             _ => None,
         }
     }
@@ -91,7 +93,7 @@ impl RflQuestion {
             return Err(format!("Invalid question line format: {line}"));
         }
 
-        self.label = parts[1].to_string();
+        self.label = parts[1].to_string().to_uppercase();
         self.question_type = QuestionType::from_str(parts[2])
             .ok_or_else(|| format!("Invalid question type: {}", parts[2]))?;
 
