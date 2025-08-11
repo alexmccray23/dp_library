@@ -58,13 +58,13 @@ impl CfmcLogic {
     ///
     /// Returns an error if the expression syntax is invalid
     pub fn parse(expression: &str) -> Result<Self, String> {
-        let trimmed = Self::trim_expression(&expression.to_uppercase());
+        let trimmed = Self::trim_expression(&expression);
         let root = Self::parse_node(&trimmed)?;
         Ok(Self { root })
     }
 
     fn trim_expression(expr: &str) -> String {
-        let mut trimmed = expr.trim().to_string();
+        let mut trimmed = expr.trim().to_uppercase();
 
         // Remove outer parentheses if they wrap the entire expression
         if trimmed.starts_with('(') && trimmed.ends_with(')') {
