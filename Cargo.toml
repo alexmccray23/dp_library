@@ -11,6 +11,12 @@ path = "src/bin/chkcounts.rs"
 name = "freq"
 path = "src/bin/freq.rs"
 
+[[bin]]
+name = "banners"
+path = "src/bin/banners.rs"
+
 [dependencies]
 regex = "1.11"
 clap = { version = "4.5", features = ["derive"] }
+calamine = "0.26"
+serde = { version = "1.0", features = ["derive"] }

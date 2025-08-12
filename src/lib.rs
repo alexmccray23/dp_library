@@ -8,7 +8,9 @@
 
 pub mod rfl;
 pub mod cfmc;
+pub mod crosstabs;
 
 // Re-export main types for convenience
 pub use rfl::{RflFile, RflQuestion, QuestionType};
 pub use cfmc::{CfmcLogic, CfmcNode, CfmcOperator};
+pub use crosstabs::{BannersTables, CrossTabsLogic, Banner, BannersTable, CrossTabsError};
