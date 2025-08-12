@@ -12,5 +12,5 @@ name = "freq"
 path = "src/bin/freq.rs"
 
 [dependencies]
-regex = "1.0"
-clap = { version = "4.0", features = ["derive"] }
+regex = "1.11"
+clap = { version = "4.5", features = ["derive"] }

@@ -1,6 +1,13 @@
-use std::collections::HashMap;
-use std::fs::File;
-use std::io::{BufRead, BufReader, Result as IoResult};
+use std::{
+    collections::HashMap,
+    fs::File,
+    io::{BufRead, BufReader, Result as IoResult},
+    sync::LazyLock,
+};
+use regex::Regex;
+
+static QUESTION_PREFIX_RE: LazyLock<Regex> =
+    LazyLock::new(|| regex::Regex::new(r"^[A-Za-z]*\d+[A-Za-z]*\.?\s*").unwrap());
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum QuestionType {
@@ -25,15 +32,15 @@ impl QuestionType {
 #[derive(Debug, Clone)]
 pub struct RflQuestion {
     pub label: String,
-    pub start_col: usize,
-    pub width: usize,
-    pub question_type: QuestionType,
-    pub max_responses: usize,
     pub text_lines: Vec<String>,
     pub response_codes: HashMap<String, String>,
+    pub exceptions: Vec<String>,
+    pub start_col: usize,
+    pub width: usize,
+    pub max_responses: usize,
     pub min_value: Option<i32>,
     pub max_value: Option<i32>,
-    pub exceptions: Vec<String>,
+    pub question_type: QuestionType,
 }
 
 impl RflQuestion {
@@ -189,8 +196,7 @@ impl RflQuestion {
 
     fn remove_question_prefix(text: &str) -> String {
         // Remove patterns like "A1.", "Q17.", "D16C.", etc.
-        regex::Regex::new(r"^[A-Za-z]*\d+[A-Za-z]*\.?\s*")
-            .map_or_else(|_| text.to_string(), |re| re.replace(text, "").to_string())
+        QUESTION_PREFIX_RE.replace(text, "").to_string()
     }
 
     #[must_use]
