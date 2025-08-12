@@ -206,11 +206,11 @@ impl CfmcLogic {
         let mut best_operator = None;
         let mut best_position = 0;
 
-        let chars: Vec<char> = logic.chars().collect();
+        //let chars: Vec<char> = logic.chars().collect();
         let mut i = 0;
 
-        while i < chars.len() {
-            match chars[i] {
+        while i < logic.len() {
+            match logic[i..=i].parse::<char>().unwrap() {
                 '"' => in_quotes = !in_quotes,
                 '(' if !in_quotes => {
                     level += 1;
@@ -239,7 +239,7 @@ impl CfmcLogic {
             }
 
             // Check for operators at current position
-            if let Some((op, len)) = Self::match_operator_at(&chars, i) {
+            if let Some((op, len)) = Self::match_operator_at(logic, i) {
                 let precedence = Self::operator_precedence(&op);
                 if precedence <= lowest_precedence {
                     lowest_precedence = precedence;
@@ -266,12 +266,14 @@ impl CfmcLogic {
         Ok(best_operator.map(|op| (op, best_position)))
     }
 
-    fn match_operator_at(chars: &[char], pos: usize) -> Option<(CfmcOperator, usize)> {
-        if pos >= chars.len() {
+    //fn match_operator_at(chars: &[char], pos: usize) -> Option<(CfmcOperator, usize)> {
+    fn match_operator_at(logic: &str, pos: usize) -> Option<(CfmcOperator, usize)> {
+        if pos >= logic.len() {
             return None;
         }
 
-        let remaining: String = chars[pos..].iter().collect();
+        //let remaining: String = chars[pos..].iter().collect();
+        let remaining = &logic[pos..];
 
         // Check longer operators first
         if remaining.starts_with("NUMITEMS") {
