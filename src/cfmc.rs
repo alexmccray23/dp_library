@@ -206,25 +206,25 @@ impl CfmcLogic {
         let mut best_operator = None;
         let mut best_position = 0;
 
-        let chars: Vec<char> = logic.chars().collect();
+        let bytes = logic.as_bytes();
         let mut i = 0;
 
-        while i < chars.len() {
-            match chars[i] {
-                '"' => in_quotes = !in_quotes,
-                '(' if !in_quotes => {
+        while i < bytes.len() {
+            match bytes[i] {
+                b'"' => in_quotes = !in_quotes,
+                b'(' if !in_quotes => {
                     level += 1;
                 }
-                ')' if !in_quotes => {
+                b')' if !in_quotes => {
                     level -= 1;
                     if level < 0 {
                         return Err(format!("Unbalanced parentheses. Too many closing ')' at position {i}"));
                     }
                 }
-                '[' if !in_quotes => {
+                b'[' if !in_quotes => {
                     bracket_level += 1;
                 }
-                ']' if !in_quotes => {
+                b']' if !in_quotes => {
                     bracket_level -= 1;
                     if bracket_level < 0 {
                         return Err(format!("Unbalanced brackets. Too many closing ']' at position {i}"));
@@ -233,23 +233,20 @@ impl CfmcLogic {
                 _ => {}
             }
 
-            if in_quotes || level > 0 || bracket_level > 0 {
-                i += 1;
-                continue;
-            }
-
-            // Check for operators at current position
-            if let Some((op, len)) = Self::match_operator_at(&chars, i) {
-                let precedence = Self::operator_precedence(&op);
-                if precedence <= lowest_precedence {
-                    lowest_precedence = precedence;
-                    best_operator = Some(op);
-                    best_position = i;
+            if !in_quotes && level == 0 && bracket_level == 0 {
+                // Check for operators at current position
+                if let Some((op, len)) = Self::match_operator_at_bytes(bytes, i) {
+                    let precedence = Self::operator_precedence(&op);
+                    if precedence <= lowest_precedence {
+                        lowest_precedence = precedence;
+                        best_operator = Some(op);
+                        best_position = i;
+                    }
+                    i += len;
+                    continue;
                 }
-                i += len;
-            } else {
-                i += 1;
             }
+            i += 1;
         }
 
         // Final check for unclosed parentheses/brackets
@@ -266,47 +263,42 @@ impl CfmcLogic {
         Ok(best_operator.map(|op| (op, best_position)))
     }
 
-    fn match_operator_at(chars: &[char], pos: usize) -> Option<(CfmcOperator, usize)> {
-        if pos >= chars.len() {
+    fn match_operator_at_bytes(bytes: &[u8], pos: usize) -> Option<(CfmcOperator, usize)> {
+        if pos >= bytes.len() {
             return None;
         }
 
-        let remaining: String = chars[pos..].iter().collect();
+        let remaining = &bytes[pos..];
 
         // Check longer operators first
-        if remaining.starts_with("NUMITEMS") {
+        if remaining.starts_with(b"NUMITEMS") {
             Some((CfmcOperator::NumItems, 8))
-        } else if remaining.starts_with("NOT") {
-            Some((CfmcOperator::Not, 3))
-        } else if remaining.starts_with("AND") {
-            Some((CfmcOperator::And, 3))
-        } else if remaining.starts_with("OR") {
-            Some((CfmcOperator::Or, 2))
-        } else if remaining.starts_with("<=") {
-            Some((CfmcOperator::LessEqual, 2))
-        } else if remaining.starts_with(">=") {
-            Some((CfmcOperator::GreaterEqual, 2))
-        } else if remaining.starts_with("<>") {
-            Some((CfmcOperator::NotEqual, 2))
-        } else if remaining.starts_with("^^NB") {
+        } else if remaining.starts_with(b"^^NB") {
             Some((CfmcOperator::IsNotBlank, 4))
-        } else if remaining.starts_with("^^B") {
+        } else if remaining.starts_with(b"NOT") {
+            Some((CfmcOperator::Not, 3))
+        } else if remaining.starts_with(b"AND") {
+            Some((CfmcOperator::And, 3))
+        } else if remaining.starts_with(b"^^B") {
             Some((CfmcOperator::IsBlank, 3))
-        } else if remaining.starts_with('<') {
-            Some((CfmcOperator::Less, 1))
-        } else if remaining.starts_with('>') {
-            Some((CfmcOperator::Greater, 1))
-        } else if remaining.starts_with('=')
-            || remaining.starts_with('$')
-            || remaining.starts_with('#')
-        {
-            Some((CfmcOperator::Equal, 1))
-        } else if remaining.starts_with('+') {
-            Some((CfmcOperator::Plus, 1))
-        } else if remaining.starts_with(',') {
-            Some((CfmcOperator::Comma, 1))
-        } else if remaining.starts_with('-') {
-            Some((CfmcOperator::Dash, 1))
+        } else if remaining.starts_with(b"<=") {
+            Some((CfmcOperator::LessEqual, 2))
+        } else if remaining.starts_with(b">=") {
+            Some((CfmcOperator::GreaterEqual, 2))
+        } else if remaining.starts_with(b"<>") {
+            Some((CfmcOperator::NotEqual, 2))
+        } else if remaining.starts_with(b"OR") {
+            Some((CfmcOperator::Or, 2))
+        } else if !remaining.is_empty() {
+            match remaining[0] {
+                b'<' => Some((CfmcOperator::Less, 1)),
+                b'>' => Some((CfmcOperator::Greater, 1)),
+                b'=' | b'$' | b'#' => Some((CfmcOperator::Equal, 1)),
+                b'+' => Some((CfmcOperator::Plus, 1)),
+                b',' => Some((CfmcOperator::Comma, 1)),
+                b'-' => Some((CfmcOperator::Dash, 1)),
+                _ => None,
+            }
         } else {
             None
         }
