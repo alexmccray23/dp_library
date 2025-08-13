@@ -1,6 +1,5 @@
 use crate::rfl::RflQuestion;
 use calamine::{Data, Reader, open_workbook_auto};
-use regex::Regex;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
@@ -26,27 +25,10 @@ impl fmt::Display for CrossTabsError {
 impl Error for CrossTabsError {}
 
 #[derive(Debug, Clone)]
-pub enum CrossTabsNode {
-    Binary {
-        left: Box<CrossTabsNode>,
-        operator: String,
-        right: Box<CrossTabsNode>,
-    },
-    Unary {
-        operator: String,
-        operand: Box<CrossTabsNode>,
-    },
-    Comparison {
-        question: String,
-        codes: String,
-    },
-    Literal(String),
-    Group(Box<CrossTabsNode>),
-}
-
-#[derive(Debug, Clone)]
 pub struct CrossTabsLogic {
-    pub root: CrossTabsNode,
+    pub value: Option<String>,
+    pub left: Option<Box<CrossTabsLogic>>,
+    pub right: Option<Box<CrossTabsLogic>>,
 }
 
 impl CrossTabsLogic {
@@ -54,231 +36,320 @@ impl CrossTabsLogic {
     ///
     /// # Errors
     ///
-    /// Returns `CrossTabsError::ParseError` if the logic expression cannot be parsed.
+    /// This function currently does not return errors but may in future versions.
     pub fn new(logic: &str) -> Result<Self, CrossTabsError> {
-        let processed = Self::preprocess_logic(logic);
-        let root = Self::parse_expression(&processed)?;
-        Ok(Self { root })
-    }
-
-    fn preprocess_logic(logic: &str) -> String {
-        let mut result = logic.to_string();
+        let mut logic = logic.to_string();
 
         // Handle slash syntax: QX2/Q17:1 becomes QX2:1 OR Q17:1
-        let slash_re = Regex::new(r"(\w+)/(\w+)(:\d+(?:-\d+|,\d+)*)").unwrap();
-        result = slash_re.replace_all(&result, "$1$3 OR $2$3").to_string();
+        if logic.contains('/') {
+            logic = logic
+                .replace("/(", ":(")
+                .replace("/Q", ":Q")
+                .replace('/', " OR ");
+            if let Some(colon_pos) = logic.find(':') {
+                if let Some(or_pos) = logic[colon_pos..].find(" OR ") {
+                    let actual_or_pos = colon_pos + or_pos;
+                    let codes = &logic[colon_pos + 1..actual_or_pos];
+                    logic = logic.replace(" OR ", &format!("{codes} OR "));
+                }
+            }
+        }
 
-        // Handle D prefix -> Q prefix
-        let d_re = Regex::new(r"(\(*)(D\d)").unwrap();
-        result = d_re.replace_all(&result, "${1}Q$2").to_string();
-
-        result
+        Ok(Self::parse_simple(&logic))
     }
 
-    fn parse_expression(input: &str) -> Result<CrossTabsNode, CrossTabsError> {
-        let trimmed = input.trim();
+    fn parse_simple(logic: &str) -> Self {
+        let mut logic = logic.trim().to_string();
 
-        if trimmed.is_empty() {
-            return Err(CrossTabsError::ParseError("Empty expression".to_string()));
+        // Find operators outside of parentheses (respecting precedence)
+
+        // Check for MINUS (highest precedence)
+        if let Some(operator_pos) = Self::find_operator_outside_parens(&logic, " MINUS ") {
+            return Self {
+                value: Some("--".to_string()),
+                left: Some(Box::new(Self::parse_simple(&logic[..operator_pos]))),
+                right: Some(Box::new(Self::parse_simple(&logic[operator_pos + 7..]))),
+            };
         }
 
-        // Handle MINUS operator (highest precedence)
-        if let Some(pos) = Self::find_operator(trimmed, " MINUS ") {
-            let left = Self::parse_expression(&trimmed[..pos])?;
-            let right = Self::parse_expression(&trimmed[pos + 7..])?;
-            return Ok(CrossTabsNode::Binary {
-                left: Box::new(left),
-                operator: "--".to_string(),
-                right: Box::new(right),
-            });
+        // Check for & or AND
+        if let Some(operator_pos) = Self::find_operator_outside_parens(&logic, " & ") {
+            return Self {
+                value: Some("&".to_string()),
+                left: Some(Box::new(Self::parse_simple(&logic[..operator_pos]))),
+                right: Some(Box::new(Self::parse_simple(&logic[operator_pos + 3..]))),
+            };
         }
 
-        // Handle AND operator
-        if let Some(pos) = Self::find_operator(trimmed, " AND ") {
-            let left = Self::parse_expression(&trimmed[..pos])?;
-            let right = Self::parse_expression(&trimmed[pos + 5..])?;
-            return Ok(CrossTabsNode::Binary {
-                left: Box::new(left),
-                operator: "&".to_string(),
-                right: Box::new(right),
-            });
+        if let Some(operator_pos) = Self::find_operator_outside_parens(&logic, " AND ") {
+            return Self {
+                value: Some("&".to_string()),
+                left: Some(Box::new(Self::parse_simple(&logic[..operator_pos]))),
+                right: Some(Box::new(Self::parse_simple(&logic[operator_pos + 5..]))),
+            };
         }
 
-        // Handle & operator
-        if let Some(pos) = Self::find_operator(trimmed, " & ") {
-            let left = Self::parse_expression(&trimmed[..pos])?;
-            let right = Self::parse_expression(&trimmed[pos + 3..])?;
-            return Ok(CrossTabsNode::Binary {
-                left: Box::new(left),
-                operator: "&".to_string(),
-                right: Box::new(right),
-            });
+        // Check for OR (lowest precedence)
+        if let Some(operator_pos) = Self::find_operator_outside_parens(&logic, " OR ") {
+            return Self {
+                value: Some("|".to_string()),
+                left: Some(Box::new(Self::parse_simple(&logic[..operator_pos]))),
+                right: Some(Box::new(Self::parse_simple(&logic[operator_pos + 4..]))),
+            };
         }
 
-        // Handle OR operator (lowest precedence)
-        if let Some(pos) = Self::find_operator(trimmed, " OR ") {
-            let left = Self::parse_expression(&trimmed[..pos])?;
-            let right = Self::parse_expression(&trimmed[pos + 4..])?;
-            return Ok(CrossTabsNode::Binary {
-                left: Box::new(left),
-                operator: "|".to_string(),
-                right: Box::new(right),
-            });
+        // Handle parentheses with colon content (like Perl: m/(\().*?:/)
+        if logic.starts_with('(') && logic.contains(':') {
+            return Self {
+                value: Some("(".to_string()),
+                left: Some(Box::new(Self::parse_simple(&logic[1..logic.len() - 1]))),
+                right: None,
+            };
         }
 
-        // Handle parentheses
-        if trimmed.starts_with('(') && trimmed.ends_with(')') {
-            let inner = &trimmed[1..trimmed.len() - 1];
-            let inner_node = Self::parse_expression(inner)?;
-            return Ok(CrossTabsNode::Group(Box::new(inner_node)));
+        // Handle balanced parentheses
+        if logic.starts_with('(') && logic.ends_with(')') && Self::is_balanced_parentheses(&logic) {
+            return Self {
+                value: Some("(".to_string()),
+                left: Some(Box::new(Self::parse_simple(&logic[1..logic.len() - 1]))),
+                right: None,
+            };
         }
 
-        // Handle question:code patterns
-        if let Some(colon_pos) = trimmed.find(':') {
-            let question = trimmed[..colon_pos].trim().to_string();
-            let codes = trimmed[colon_pos + 1..]
-                .trim()
-                .to_string()
-                .replace(", ", "");
-            return Ok(CrossTabsNode::Comparison { question, codes });
+        // Handle colon comparison
+        if logic.contains(':') {
+            return Self {
+                value: Some(":".to_string()),
+                left: Some(Box::new(Self::parse_simple(
+                    &logic[..logic.find(':').unwrap()],
+                ))),
+                right: Some(Box::new(Self::parse_simple(
+                    &logic[logic.find(':').unwrap() + 1..],
+                ))),
+            };
         }
 
-        // Default to literal
-        Ok(CrossTabsNode::Literal(trimmed.to_string()))
+        // Leaf node - remove whitespace for consistency with Perl
+        logic = logic.replace(' ', "");
+        Self {
+            value: Some(logic),
+            left: None,
+            right: None,
+        }
     }
 
-    fn find_operator(input: &str, op: &str) -> Option<usize> {
+    const fn is_leaf(&self) -> bool {
+        self.left.is_none() && self.right.is_none()
+    }
+
+    fn find_operator_outside_parens(logic: &str, operator: &str) -> Option<usize> {
         let mut paren_depth = 0;
-        let chars: Vec<char> = input.chars().collect();
-        let op_chars: Vec<char> = op.chars().collect();
+        let logic_chars: Vec<char> = logic.chars().collect();
+        let op_chars: Vec<char> = operator.chars().collect();
 
-        for i in 0..=chars.len().saturating_sub(op_chars.len()) {
-            match chars[i] {
+        for i in 0..=logic_chars.len().saturating_sub(op_chars.len()) {
+            match logic_chars[i] {
                 '(' => paren_depth += 1,
                 ')' => paren_depth -= 1,
                 _ => {}
             }
 
-            if paren_depth == 0 && chars[i..].starts_with(&op_chars) {
+            if paren_depth == 0 && logic_chars[i..].starts_with(&op_chars) {
                 return Some(i);
             }
         }
         None
     }
 
-    #[must_use]
-    pub fn to_inorder(&self) -> String {
-        Self::node_to_inorder(&self.root)
+    fn is_balanced_parentheses(logic: &str) -> bool {
+        let mut depth = 0;
+        for c in logic.chars() {
+            match c {
+                '(' => depth += 1,
+                ')' => {
+                    depth -= 1;
+                    if depth < 0 {
+                        return false;
+                    }
+                    // If we reach 0 before the end, the outer parens don't wrap everything
+                    if depth == 0 && c != logic.chars().last().unwrap_or(' ') {
+                        return false;
+                    }
+                }
+                _ => {}
+            }
+        }
+        depth == 0
     }
 
-    fn node_to_inorder(node: &CrossTabsNode) -> String {
-        match node {
-            CrossTabsNode::Binary {
-                left,
-                operator,
-                right,
-            } => {
-                let left_str = Self::node_to_inorder(left);
-                let right_str = Self::node_to_inorder(right);
-                let op_str = match operator.as_str() {
-                    "--" => " MINUS ",
-                    "&" => " & ",
-                    "|" => " OR ",
-                    _ => &format!(" {operator} "),
-                };
-                format!("{left_str}{op_str}{right_str}")
+    #[must_use]
+    #[allow(clippy::option_if_let_else)]
+    pub fn to_inorder(&self) -> String {
+        if let Some(ref left) = self.left {
+            let left_str = left.to_inorder();
+            if let Some(ref value) = self.value {
+                match value.as_str() {
+                    "--" => {
+                        if let Some(ref right) = self.right {
+                            format!("{} MINUS {}", left_str, right.to_inorder())
+                        } else {
+                            left_str
+                        }
+                    }
+                    "&" => {
+                        if let Some(ref right) = self.right {
+                            format!("{} & {}", left_str, right.to_inorder())
+                        } else {
+                            left_str
+                        }
+                    }
+                    "|" => {
+                        if let Some(ref right) = self.right {
+                            format!("{} OR {}", left_str, right.to_inorder())
+                        } else {
+                            left_str
+                        }
+                    }
+                    ":" => {
+                        if let Some(ref right) = self.right {
+                            format!("{}:{}", left_str, right.to_inorder())
+                        } else {
+                            left_str
+                        }
+                    }
+                    "(" => {
+                        format!("({left_str})")
+                    }
+                    _ => {
+                        if let Some(ref right) = self.right {
+                            format!("{} {} {}", left_str, value, right.to_inorder())
+                        } else {
+                            left_str
+                        }
+                    }
+                }
+            } else {
+                left_str
             }
-            CrossTabsNode::Unary { operator, operand } => {
-                format!("{}{}", operator, Self::node_to_inorder(operand))
+        } else if let Some(ref value) = self.value {
+            // If this is a literal string with parentheses, print it as-is (like Perl does)
+            if value.contains('(') || value.contains(')') {
+                eprintln!("Don't know what to do with '{value}'");
             }
-            CrossTabsNode::Comparison { question, codes } => {
-                format!("{question}:{codes}")
-            }
-            CrossTabsNode::Literal(value) => value.clone(),
-            CrossTabsNode::Group(inner) => {
-                format!("({})", Self::node_to_inorder(inner))
-            }
+            value.clone()
+        } else {
+            String::new()
         }
     }
 
     /// Convert the logic expression to Uncle syntax.
     #[must_use]
+    #[allow(clippy::option_if_let_else)]
     pub fn to_uncle_syntax(&self, questions: &HashMap<String, RflQuestion>) -> String {
-        Self::node_to_uncle_syntax(&self.root, questions)
-    }
+        if let Some(ref value) = self.value {
+            if value == ":" {
+                // This is a comparison
+                if let (Some(left), Some(right)) = (&self.left, &self.right) {
+                    if !left.is_leaf() || !right.is_leaf() {
+                        eprintln!(
+                            "{}-{} Non leafs being compared.",
+                            left.value.as_ref().unwrap_or(&String::new()),
+                            right.value.as_ref().unwrap_or(&String::new())
+                        );
+                    }
 
-    fn node_to_uncle_syntax(
-        node: &CrossTabsNode,
-        questions: &HashMap<String, RflQuestion>,
-    ) -> String {
-        match node {
-            CrossTabsNode::Binary {
-                left,
-                operator,
-                right,
-            } => {
-                let left_str = Self::node_to_uncle_syntax(left, questions);
-                let right_str = Self::node_to_uncle_syntax(right, questions);
-                let op_str = match operator.as_str() {
-                    "--" => "-",
-                    "&" => " ",
-                    "|" => " OR ",
-                    _ => &format!(" {operator} "),
-                };
-                format!("{left_str}{op_str}{right_str}")
+                    let question_name = left.value.as_deref().unwrap_or("").to_uppercase();
+                    let codes = right.value.as_deref().unwrap_or("");
+
+                    // Try to find the question with or without Q prefix
+                    let question = questions
+                        .get(&question_name)
+                        .or_else(|| questions.get(&format!("Q{question_name}")));
+
+                    if let Some(question) = question {
+                        let mut punches = codes.replace('-', ":");
+
+                        // Handle MEAN special case
+                        if codes == "MEAN" {
+                            let mean_part = format!(
+                                "A(1!{}:{}), ",
+                                question.start_col,
+                                question.start_col + question.width - 1
+                            );
+                            punches = format!(
+                                "{}:{}",
+                                question.min_value.unwrap_or(0),
+                                question.max_value.unwrap_or(99)
+                            );
+                            return format!(
+                                "{}{}",
+                                mean_part,
+                                Self::generate_uncle_syntax(question, &punches)
+                            );
+                        }
+
+                        Self::generate_uncle_syntax(question, &punches)
+                    } else {
+                        eprintln!("{question_name} not found in RFL file.");
+                        format!("{question_name}-{codes}")
+                    }
+                } else {
+                    String::new()
+                }
+            } else {
+                // Handle operators
+                if let Some(ref left) = self.left {
+                    let left_str = left.to_uncle_syntax(questions);
+                    match value.as_str() {
+                        "--" => {
+                            if let Some(ref right) = self.right {
+                                format!("{}-{}", left_str, right.to_uncle_syntax(questions))
+                            } else {
+                                left_str
+                            }
+                        }
+                        "|" => {
+                            if let Some(ref right) = self.right {
+                                format!("{} OR {}", left_str, right.to_uncle_syntax(questions))
+                            } else {
+                                left_str
+                            }
+                        }
+                        "&" => {
+                            if let Some(ref right) = self.right {
+                                format!("{} {}", left_str, right.to_uncle_syntax(questions))
+                            } else {
+                                left_str
+                            }
+                        }
+                        "(" => {
+                            format!("({left_str})")
+                        }
+                        _ => {
+                            if value.is_empty() {
+                                left_str
+                            } else {
+                                eprintln!("Don't know what to do with '{value}'");
+                                if let Some(ref right) = self.right {
+                                    format!(
+                                        "{} {} {}",
+                                        left_str,
+                                        value,
+                                        right.to_uncle_syntax(questions)
+                                    )
+                                } else {
+                                    format!("{left_str}{value}")
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    String::new()
+                }
             }
-            CrossTabsNode::Unary { operator, operand } => {
-                let operand_str = Self::node_to_uncle_syntax(operand, questions);
-                format!("{operator}{operand_str}")
-            }
-            CrossTabsNode::Comparison { question, codes } => {
-                Self::comparison_to_uncle_syntax(question, codes, questions)
-            }
-            // CrossTabsNode::Literal(value) => value.clone(),
-            CrossTabsNode::Literal(_) => String::new(),
-            CrossTabsNode::Group(inner) => {
-                let inner_str = Self::node_to_uncle_syntax(inner, questions);
-                format!("({inner_str})")
-            }
+        } else {
+            String::new()
         }
-    }
-
-    fn comparison_to_uncle_syntax(
-        question_name: &str,
-        codes: &str,
-        questions: &HashMap<String, RflQuestion>,
-    ) -> String {
-        // Try to find the question with or without Q prefix
-        let question = questions
-            .get(question_name.to_uppercase().as_str())
-            .or_else(|| questions.get(&format!("Q{}", question_name.to_uppercase())));
-
-        let Some(question) = question else {
-            eprintln!("Question {question_name} is in spec but not found in rfl.");
-            // Return a fallback syntax when question is not found
-            return format!("{question_name}:{codes}");
-        };
-
-        let mut processed_codes = codes.replace('-', ":");
-
-        // Handle MEAN special case
-        if codes == "MEAN" {
-            let start_col = question.start_col;
-            let end_col = start_col + question.width - 1;
-            let mean_part = format!("A(1!{start_col}:{end_col}), ");
-            processed_codes = format!(
-                "{}:{}",
-                question.min_value.unwrap_or(0),
-                question.max_value.unwrap_or(99)
-            );
-            return format!(
-                "{}{}",
-                mean_part,
-                Self::generate_uncle_syntax(question, &processed_codes)
-            );
-        }
-
-        Self::generate_uncle_syntax(question, &processed_codes)
     }
 
     fn generate_uncle_syntax(question: &RflQuestion, codes: &str) -> String {
@@ -298,9 +369,8 @@ impl CrossTabsLogic {
                 )
             }
         } else if max_responses == 1 {
-            let end_col = start_col + width - 1;
-            format!("R(1!{start_col}:{end_col},{codes})")
-        } else {
+            format!("R(1!{}:{},{})", start_col, start_col + width - 1, codes)
+        } else if max_responses <= 3 {
             let mut ranges = Vec::new();
             for i in 0..max_responses {
                 let range_start = start_col + (i * width);
@@ -308,6 +378,20 @@ impl CrossTabsLogic {
                 ranges.push(format!("1!{range_start}:{range_end}"));
             }
             format!("R({},{})", ranges.join("/"), codes)
+        } else {
+            let mut ranges = Vec::new();
+            for i in 0..max_responses {
+                let range_start = start_col + (i * width);
+                let range_end = range_start + width - 1;
+                if i == 0 {
+                    ranges.push(format!("1!{range_start}:{range_end}/"));
+                } else if i == 1 {
+                    ranges.push(format!("1!{range_start}:{range_end}..."));
+                } else if i == max_responses - 1 {
+                    ranges.push(format!("1!{range_start}:{range_end}"));
+                }
+            }
+            format!("R({},{})", ranges.join(""), codes)
         }
     }
 }
@@ -325,7 +409,7 @@ impl CrossTab {
     ///
     /// # Errors
     ///
-    /// Returns `CrossTabsError::ParseError` if the specs cannot be parsed.
+    /// Returns an error if the specs cannot be parsed.
     pub fn new(
         title: &str,
         specs: &str,
@@ -368,7 +452,7 @@ impl Banner {
     ///
     /// # Errors
     ///
-    /// Returns `CrossTabsError::ParseError` if the specs cannot be parsed.
+    /// Returns an error if the specs cannot be parsed.
     pub fn new(
         title: &str,
         subtitle: &str,
@@ -430,7 +514,7 @@ impl CrossTabsTable {
     ///
     /// # Errors
     ///
-    /// Returns `CrossTabsError::ParseError` if the specs cannot be parsed.
+    /// Returns an error if the crosstab specs cannot be parsed.
     pub fn add_crosstab(
         &mut self,
         title: &str,
@@ -492,7 +576,7 @@ impl BannersTable {
     ///
     /// # Errors
     ///
-    /// Returns `CrossTabsError::ParseError` if the specs cannot be parsed.
+    /// Returns an error if the banner specs cannot be parsed.
     pub fn add_banner(
         &mut self,
         title: &str,
@@ -517,7 +601,7 @@ impl BannersTables {
     ///
     /// # Errors
     ///
-    /// Returns `CrossTabsError::ExcelError` if the file cannot be read or parsed.
+    /// Returns an error if the Excel file cannot be read or parsed.
     pub fn from_excel(filename: &str) -> Result<Self, CrossTabsError> {
         let mut workbook = open_workbook_auto(filename)
             .map_err(|e| CrossTabsError::ExcelError(format!("Failed to open Excel file: {e}")))?;
@@ -588,7 +672,9 @@ impl BannersTables {
                                 title: title.trim().to_string(),
                                 subtitle: subtitle.trim().to_string(),
                                 specs: CrossTabsLogic {
-                                    root: CrossTabsNode::Literal(format!("ERROR_PARSING: {specs}")),
+                                    value: Some(format!("ERROR_PARSING: {specs}")),
+                                    left: None,
+                                    right: None,
                                 },
                                 base,
                                 options: String::new(),
@@ -644,17 +730,34 @@ impl BannersTables {
     }
 
     fn fix_spec_format(spec: &str) -> String {
-        let mut result = spec.to_string();
-
         // Fix patterns like D2B2 -> D2B:2, Q1A1 -> Q1A:1, etc.
-        let fix_pattern = Regex::new(r"([A-Za-z]+\d+[A-Za-z]?)(\d+)$").unwrap();
-        if let Some(captures) = fix_pattern.captures(&result) {
-            if let (Some(prefix), Some(number)) = (captures.get(1), captures.get(2)) {
-                result = format!("{}:{}", prefix.as_str(), number.as_str());
+        // Simple pattern matching without regex for performance
+        let spec = spec.trim();
+
+        // Look for pattern: letters + digits + letters + digits at end
+        let mut last_letter_pos = None;
+        let mut digit_start = None;
+
+        for (i, c) in spec.char_indices() {
+            if c.is_ascii_alphabetic() {
+                if digit_start.is_some() {
+                    last_letter_pos = Some(i);
+                    digit_start = None;
+                }
+            } else if c.is_ascii_digit() && last_letter_pos.is_some() && digit_start.is_none() {
+                digit_start = Some(i);
             }
         }
 
-        result
+        if let (Some(_letter_pos), Some(digit_pos)) = (last_letter_pos, digit_start) {
+            if digit_pos == spec.len() - 1
+                || spec.chars().skip(digit_pos).all(|c| c.is_ascii_digit())
+            {
+                return format!("{}:{}", &spec[..digit_pos], &spec[digit_pos..]);
+            }
+        }
+
+        spec.to_string()
     }
 
     fn cell_to_string(cell: &Data) -> String {
@@ -672,7 +775,7 @@ impl BannersTables {
     ///
     /// # Errors
     ///
-    /// Returns `CrossTabsError` if banner generation fails.
+    /// Returns an error if banner generation fails.
     pub fn generate_banner_output(
         &self,
         questions: &HashMap<String, RflQuestion>,
@@ -713,7 +816,7 @@ impl BannersTables {
 
             // Determine format based on number of columns
             let format = if table.banners.len() >= 22 {
-                let bleed = if table.banners.len() >= 23 {
+                let bleed = if table.banners.len() >= 25 {
                     " BLEED"
                 } else {
                     ""
