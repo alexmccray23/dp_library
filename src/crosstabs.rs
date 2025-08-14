@@ -54,6 +54,10 @@ impl CrossTabsLogic {
                 }
             }
         }
+        // Handle "):" syntax...
+        if logic.contains("):") {
+            logic = logic.replace("):", ":") + ")";
+        }
 
         Ok(Self::parse_simple(&logic))
     }
@@ -130,7 +134,7 @@ impl CrossTabsLogic {
         }
 
         // Leaf node - remove whitespace for consistency with Perl
-        logic = logic.replace(' ', "");
+        logic = logic.replace(", ", ",");
         Self {
             value: Some(logic),
             left: None,
@@ -217,9 +221,6 @@ impl CrossTabsLogic {
                             left_str
                         }
                     }
-                    "(" => {
-                        format!("({left_str})")
-                    }
                     _ => {
                         if let Some(ref right) = self.right {
                             format!("{} {} {}", left_str, value, right.to_inorder())
@@ -291,7 +292,7 @@ impl CrossTabsLogic {
                         Self::generate_uncle_syntax(question, &punches)
                     } else {
                         eprintln!("{question_name} not found in RFL file.");
-                        format!("{question_name}-{codes}")
+                        format!("{question_name}:{codes}")
                     }
                 } else {
                     String::new()
@@ -344,6 +345,7 @@ impl CrossTabsLogic {
                         }
                     }
                 } else {
+                    // eprintln!("{value} not found in RFL file.");
                     String::new()
                 }
             }
@@ -816,7 +818,7 @@ impl BannersTables {
 
             // Determine format based on number of columns
             let format = if table.banners.len() >= 22 {
-                let bleed = if table.banners.len() >= 25 {
+                let bleed = if table.banners.len() >= 24 {
                     " BLEED"
                 } else {
                     ""
