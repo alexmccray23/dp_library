@@ -67,6 +67,16 @@ impl CrossTabsLogic {
 
         // Find operators outside of parentheses (respecting precedence)
 
+        // Check for NOT (highest precedence)
+        //if let Some(operator_pos) = Self::find_operator_outside_parens(&logic, "NOT") {
+        if logic.starts_with("NOT") {
+            return Self {
+                value: Some("NOT".to_string()),
+                right: Some(Box::new(Self::parse_simple(&logic[3..logic.len()]))),
+                left: None,
+            };
+        }
+
         // Check for MINUS (highest precedence)
         if let Some(operator_pos) = Self::find_operator_outside_parens(&logic, " MINUS ") {
             return Self {
@@ -344,8 +354,14 @@ impl CrossTabsLogic {
                             }
                         }
                     }
+                } else if let Some(ref right) = self.right {
+                    match value.as_str() {
+                        "NOT" => {
+                            format!("NOT{}", right.to_uncle_syntax(questions))
+                        }
+                        _ => String::new(),
+                    }
                 } else {
-                    // eprintln!("{value} not found in RFL file.");
                     String::new()
                 }
             }
@@ -622,6 +638,10 @@ impl BannersTables {
         let mut tables = Vec::new();
         let mut current_table: Option<BannersTable> = None;
         let mut age_question = String::new();
+        let mut group_title = String::new();
+        let mut age_title = String::new();
+        let mut region_title = String::new();
+        let mut region_question = String::new();
 
         for (row_idx, row) in range.rows().enumerate() {
             if row.len() < 4 {
@@ -638,6 +658,18 @@ impl BannersTables {
             let subtitle = Self::cell_to_string(&row[2]);
             let mut specs = Self::cell_to_string(&row[3]);
 
+            group_title = if title.is_empty() {
+                group_title
+            } else {
+                title.clone()
+            };
+            if group_title == "AGE" || group_title == "AGE II" {
+                age_title.clone_from(&title);
+            }
+            if group_title.contains("REGION") {
+                region_title.clone_from(&title);
+            }
+
             // Fix common spec formatting issues
             specs = Self::fix_spec_format(&specs);
             let base = if row.len() >= 5 {
@@ -646,7 +678,8 @@ impl BannersTables {
                 "ALL".to_string()
             };
 
-            Self::fix_agegroups(&mut specs, &title, &subtitle, &mut age_question);
+            Self::fix_agegroups(&mut specs, &age_title, &subtitle, &mut age_question);
+            Self::fix_national_regions(&mut specs, &region_title, &subtitle, &mut region_question);
 
             // Check if this starts a new table
             if index.chars().any(|c| !c.is_ascii_digit()) || title == "TITLE" {
@@ -695,9 +728,14 @@ impl BannersTables {
         Ok(Self { tables })
     }
 
-    fn fix_agegroups(specs: &mut String, title: &str, subtitle: &str, age_question: &mut String) {
+    fn fix_agegroups(
+        specs: &mut String,
+        age_title: &str,
+        subtitle: &str,
+        age_question: &mut String,
+    ) {
         // Handle AGE question special case
-        if title == "AGE" {
+        if age_title == "AGE" || age_title == "AGE II" {
             age_question.clone_from(specs);
         }
 
@@ -728,6 +766,61 @@ impl BannersTables {
             *specs = specs.replace(&*age_question, "(QAGE:18-49 OR AGEGROUP:1-3)");
         } else if subtitle.contains("50+") {
             *specs = specs.replace(&*age_question, "(QAGE:50-110 OR AGEGROUP:5-6)");
+        } else if subtitle.contains("35-49") {
+            *specs = specs.replace(&*age_question, "(QAGE:35-49 OR AGEGROUP:3)");
+        } else if subtitle.contains("50-64") {
+            *specs = specs.replace(&*age_question, "(QAGE:50-64 OR AGEGROUP:5)");
+        }
+    }
+
+    fn fix_national_regions(
+        specs: &mut String,
+        region_title: &str,
+        subtitle: &str,
+        region_question: &mut String,
+    ) {
+        // Handle AGE question special case
+        if region_title.contains("REGION") {
+            region_question.clone_from(specs);
+        }
+
+        // Handle age group substitutions
+        if subtitle.contains("NORTHEAST") {
+            *specs = specs.replace(
+                &*region_question,
+                "FIPSCOMB:09,23,25,33,44,50,10,11,24,34,36,42,54",
+            );
+        } else if subtitle.contains("MIDWEST") {
+            *specs = specs.replace(
+                &*region_question,
+                "FIPSCOMB:17,18,26,27,39,55,19,20,29,31,38,46",
+            );
+        } else if subtitle.contains("SOUTH") {
+            *specs = specs.replace(
+                &*region_question,
+                "FIPSCOMB:01,05,12,13,22,28,45,21,37,40,47,48,51",
+            );
+        } else if subtitle.contains("WEST") {
+            *specs = specs.replace(
+                &*region_question,
+                "FIPSCOMB:02,04,08,16,30,32,35,49,56,06,15,41,53",
+            );
+        } else if subtitle.contains("NEW ENGLAND") {
+            *specs = specs.replace(&*region_question, "FIPSCOMB:09,23,25,33,44,50");
+        } else if subtitle.contains("MID-ATLANTIC") {
+            *specs = specs.replace(&*region_question, "FIPSCOMB:10,11,24,34,36,42,54");
+        } else if subtitle.contains("GREAT LAKES") {
+            *specs = specs.replace(&*region_question, "FIPSCOMB:17,18,26,27,39,55");
+        } else if subtitle.contains("FARM BELT") {
+            *specs = specs.replace(&*region_question, "FIPSCOMB:19,20,29,31,38,46");
+        } else if subtitle.contains("DEEP SOUTH") {
+            *specs = specs.replace(&*region_question, "FIPSCOMB:01,05,12,13,22,28,45");
+        } else if subtitle.contains("OUTER SOUTH") {
+            *specs = specs.replace(&*region_question, "FIPSCOMB:21,37,40,47,48,51");
+        } else if subtitle.contains("MOUNTAIN") {
+            *specs = specs.replace(&*region_question, "FIPSCOMB:04,08,16,30,32,35,49,56");
+        } else if subtitle.contains("PACIFIC") {
+            *specs = specs.replace(&*region_question, "FIPSCOMB:02,06,15,41,53");
         }
     }
 
