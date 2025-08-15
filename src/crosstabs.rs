@@ -32,6 +32,29 @@ pub struct CrossTabsLogic {
 }
 
 impl CrossTabsLogic {
+    fn convert_do_not_select(logic: &str) -> Option<String> {
+        use regex::Regex;
+        
+        // Pattern: "Q5: DO NOT SELECT :1 OR :3" -> "NOT(Q5:1,3)"
+        let re = Regex::new(r"(\w+):\s*DO NOT SELECT\s*:([0-9]+)").ok()?;
+        
+        if let Some(caps) = re.captures(logic) {
+            let question = caps.get(1)?.as_str();
+            let mut codes = vec![caps.get(2)?.as_str()];
+            
+            // Find all additional OR'ed codes in the entire string
+            let or_re = Regex::new(r"\s+OR\s*:([0-9]+)").ok()?;
+            
+            for or_cap in or_re.captures_iter(logic) {
+                codes.push(or_cap.get(1)?.as_str());
+            }
+            
+            return Some(format!("NOT({}:{})", question, codes.join(",")));
+        }
+        
+        None
+    }
+
     /// Create a new `CrossTabsLogic` instance from a logic expression.
     ///
     /// # Errors
@@ -54,6 +77,13 @@ impl CrossTabsLogic {
                 }
             }
         }
+        // Handle "DO NOT SELECT" patterns: "Q5: DO NOT SELECT :1 OR :3" -> "NOT(Q5:1,3)"
+        if logic.contains("DO NOT SELECT") {
+            if let Some(converted) = Self::convert_do_not_select(&logic) {
+                logic = converted;
+            }
+        }
+
         // Handle "):" syntax...
         if logic.contains("):") {
             logic = logic.replace("):", ":") + ")";
@@ -68,7 +98,6 @@ impl CrossTabsLogic {
         // Find operators outside of parentheses (respecting precedence)
 
         // Check for NOT (highest precedence)
-        //if let Some(operator_pos) = Self::find_operator_outside_parens(&logic, "NOT") {
         if logic.starts_with("NOT") {
             return Self {
                 value: Some("NOT".to_string()),
@@ -231,6 +260,9 @@ impl CrossTabsLogic {
                             left_str
                         }
                     }
+                    "(" => {
+                        format!("({left_str})")
+                    }
                     _ => {
                         if let Some(ref right) = self.right {
                             format!("{} {} {}", left_str, value, right.to_inorder())
@@ -243,11 +275,25 @@ impl CrossTabsLogic {
                 left_str
             }
         } else if let Some(ref value) = self.value {
-            // If this is a literal string with parentheses, print it as-is (like Perl does)
-            if value.contains('(') || value.contains(')') {
-                eprintln!("Don't know what to do with '{value}'");
+            if value.as_str() == "NOT" {
+                if let Some(ref right) = self.right {
+                    let right_str = right.to_inorder();
+                    // Check if the right side already has parentheses or if it should be wrapped
+                    if right.value.as_deref() == Some("(") || right_str.starts_with('(') {
+                        format!("NOT{right_str}")
+                    } else {
+                        format!("NOT({right_str})")
+                    }
+                } else {
+                    value.clone()
+                }
+            } else {
+                // If this is a literal string with parentheses, print it as-is (like Perl does)
+                if value.contains('(') || value.contains(')') {
+                    eprintln!("Don't know what to do with '{value}'");
+                }
+                value.clone()
             }
-            value.clone()
         } else {
             String::new()
         }
@@ -259,111 +305,124 @@ impl CrossTabsLogic {
     pub fn to_uncle_syntax(&self, questions: &HashMap<String, RflQuestion>) -> String {
         if let Some(ref value) = self.value {
             if value == ":" {
-                // This is a comparison
-                if let (Some(left), Some(right)) = (&self.left, &self.right) {
-                    if !left.is_leaf() || !right.is_leaf() {
-                        eprintln!(
-                            "{}-{} Non leafs being compared.",
-                            left.value.as_ref().unwrap_or(&String::new()),
-                            right.value.as_ref().unwrap_or(&String::new())
-                        );
-                    }
-
-                    let question_name = left.value.as_deref().unwrap_or("").to_uppercase();
-                    let codes = right.value.as_deref().unwrap_or("");
-
-                    // Try to find the question with or without Q prefix
-                    let question = questions
-                        .get(&question_name)
-                        .or_else(|| questions.get(&format!("Q{question_name}")));
-
-                    if let Some(question) = question {
-                        let mut punches = codes.replace('-', ":");
-
-                        // Handle MEAN special case
-                        if codes == "MEAN" {
-                            let mean_part = format!(
-                                "A(1!{}:{}), ",
-                                question.start_col,
-                                question.start_col + question.width - 1
-                            );
-                            punches = format!(
-                                "{}:{}",
-                                question.min_value.unwrap_or(0),
-                                question.max_value.unwrap_or(99)
-                            );
-                            return format!(
-                                "{}{}",
-                                mean_part,
-                                Self::generate_uncle_syntax(question, &punches)
-                            );
-                        }
-
-                        Self::generate_uncle_syntax(question, &punches)
-                    } else {
-                        eprintln!("{question_name} not found in RFL file.");
-                        format!("{question_name}:{codes}")
-                    }
-                } else {
-                    String::new()
-                }
+                self.handle_comparison(questions)
             } else {
-                // Handle operators
-                if let Some(ref left) = self.left {
-                    let left_str = left.to_uncle_syntax(questions);
-                    match value.as_str() {
-                        "--" => {
-                            if let Some(ref right) = self.right {
-                                format!("{}-{}", left_str, right.to_uncle_syntax(questions))
-                            } else {
-                                left_str
-                            }
-                        }
-                        "|" => {
-                            if let Some(ref right) = self.right {
-                                format!("{} OR {}", left_str, right.to_uncle_syntax(questions))
-                            } else {
-                                left_str
-                            }
-                        }
-                        "&" => {
-                            if let Some(ref right) = self.right {
-                                format!("{} {}", left_str, right.to_uncle_syntax(questions))
-                            } else {
-                                left_str
-                            }
-                        }
-                        "(" => {
-                            format!("({left_str})")
-                        }
-                        _ => {
-                            if value.is_empty() {
-                                left_str
-                            } else {
-                                eprintln!("Don't know what to do with '{value}'");
-                                if let Some(ref right) = self.right {
-                                    format!(
-                                        "{} {} {}",
-                                        left_str,
-                                        value,
-                                        right.to_uncle_syntax(questions)
-                                    )
-                                } else {
-                                    format!("{left_str}{value}")
-                                }
-                            }
-                        }
-                    }
-                } else if let Some(ref right) = self.right {
-                    match value.as_str() {
-                        "NOT" => {
-                            format!("NOT{}", right.to_uncle_syntax(questions))
-                        }
-                        _ => String::new(),
-                    }
-                } else {
-                    String::new()
+                self.handle_operators(questions)
+            }
+        } else {
+            String::new()
+        }
+    }
+
+    fn handle_comparison(&self, questions: &HashMap<String, RflQuestion>) -> String {
+        if let (Some(left), Some(right)) = (&self.left, &self.right) {
+            if !left.is_leaf() || !right.is_leaf() {
+                eprintln!(
+                    "{}-{} Non leafs being compared.",
+                    left.value.as_ref().unwrap_or(&String::new()),
+                    right.value.as_ref().unwrap_or(&String::new())
+                );
+            }
+
+            let question_name = left.value.as_deref().unwrap_or("").to_uppercase();
+            let codes = right.value.as_deref().unwrap_or("");
+
+            // Try to find the question with or without Q prefix
+            let question = questions
+                .get(&question_name)
+                .or_else(|| questions.get(&format!("Q{question_name}")));
+
+            if let Some(question) = question {
+                let mut punches = codes.replace('-', ":");
+
+                // Handle MEAN special case
+                if codes == "MEAN" {
+                    let mean_part = format!(
+                        "A(1!{}:{}), ",
+                        question.start_col,
+                        question.start_col + question.width - 1
+                    );
+                    punches = format!(
+                        "{}:{}",
+                        question.min_value.unwrap_or(0),
+                        question.max_value.unwrap_or(99)
+                    );
+                    return format!(
+                        "{}{}",
+                        mean_part,
+                        Self::generate_uncle_syntax(question, &punches)
+                    );
                 }
+
+                Self::generate_uncle_syntax(question, &punches)
+            } else {
+                eprintln!("{question_name} not found in RFL file.");
+                format!("{question_name}:{codes}")
+            }
+        } else {
+            String::new()
+        }
+    }
+
+    #[allow(clippy::option_if_let_else)]
+    fn handle_operators(&self, questions: &HashMap<String, RflQuestion>) -> String {
+        let value = self.value.as_ref().unwrap();
+        
+        if let Some(ref left) = self.left {
+            let left_str = left.to_uncle_syntax(questions);
+            match value.as_str() {
+                "--" => {
+                    if let Some(ref right) = self.right {
+                        format!("{}-{}", left_str, right.to_uncle_syntax(questions))
+                    } else {
+                        left_str
+                    }
+                }
+                "|" => {
+                    if let Some(ref right) = self.right {
+                        format!("{} OR {}", left_str, right.to_uncle_syntax(questions))
+                    } else {
+                        left_str
+                    }
+                }
+                "&" => {
+                    if let Some(ref right) = self.right {
+                        format!("{} {}", left_str, right.to_uncle_syntax(questions))
+                    } else {
+                        left_str
+                    }
+                }
+                "(" => {
+                    format!("({left_str})")
+                }
+                _ => {
+                    if value.is_empty() {
+                        left_str
+                    } else {
+                        eprintln!("Don't know what to do with '{value}'");
+                        if let Some(ref right) = self.right {
+                            format!(
+                                "{} {} {}",
+                                left_str,
+                                value,
+                                right.to_uncle_syntax(questions)
+                            )
+                        } else {
+                            format!("{left_str}{value}")
+                        }
+                    }
+                }
+            }
+        } else if let Some(ref right) = self.right {
+            match value.as_str() {
+                "NOT" => {
+                    if right.is_leaf() {
+                        String::new()
+                    } else {
+                        format!("NOT{}", right.to_uncle_syntax(questions))
+                    }
+                }
+                _ => String::new(),
             }
         } else {
             String::new()
@@ -943,5 +1002,63 @@ impl BannersTables {
         }
 
         Ok(output)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_convert_do_not_select() {
+        // Test the specific case that broke
+        assert_eq!(
+            CrossTabsLogic::convert_do_not_select("Q5: DO NOT SELECT :1 OR :3"),
+            Some("NOT(Q5:1,3)".to_string())
+        );
+
+        // Test single value
+        assert_eq!(
+            CrossTabsLogic::convert_do_not_select("Q10: DO NOT SELECT :2"),
+            Some("NOT(Q10:2)".to_string())
+        );
+
+        // Test multiple OR values
+        assert_eq!(
+            CrossTabsLogic::convert_do_not_select("QX1: DO NOT SELECT :1 OR :2 OR :5"),
+            Some("NOT(QX1:1,2,5)".to_string())
+        );
+
+        // Test with extra whitespace
+        assert_eq!(
+            CrossTabsLogic::convert_do_not_select("Q5:    DO NOT SELECT   :1   OR   :3"),
+            Some("NOT(Q5:1,3)".to_string())
+        );
+
+        // Test non-matching cases
+        assert_eq!(
+            CrossTabsLogic::convert_do_not_select("Q5: SELECT :1 OR :3"),
+            None
+        );
+    }
+
+    #[test]
+    fn test_do_not_select_integration() {
+        // Test that the full parsing works
+        let result = CrossTabsLogic::new("Q5: DO NOT SELECT :1 OR :3").unwrap();
+        
+        // Now that we fixed the NOT handling, the to_inorder should work correctly
+        let converted = result.to_inorder();
+        assert_eq!(converted, "NOT(Q5:1,3)");
+    }
+
+    #[test]
+    fn test_not_expression_reconstruction() {
+        // Test various NOT expressions to ensure proper reconstruction
+        let simple_not = CrossTabsLogic::new("NOT(Q1:1)").unwrap();
+        assert_eq!(simple_not.to_inorder(), "NOT(Q1:1)");
+
+        let complex_not = CrossTabsLogic::new("NOT(Q1:1 OR Q2:2)").unwrap();
+        assert_eq!(complex_not.to_inorder(), "NOT(Q1:1 OR Q2:2)");
     }
 }
