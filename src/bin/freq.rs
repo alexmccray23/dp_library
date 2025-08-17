@@ -91,19 +91,16 @@ fn print_question_frequency(question: &RflQuestion, stats: &FrequencyStats, tota
 
     // Print summary statistics
     let total_pct = calculate_percentage(total_responses, total_lines);
-    println!("{:<64} {:>5} {:>3}%", "TOTAL RESPONSES", total_responses, total_pct);
+    println!("     {:<64} {:>5} {:>3}%", "TOTAL RESPONSES", total_responses, total_pct);
 
     let valid_pct = calculate_percentage(stats.valid_cases, total_lines);
-    println!(
-        "     {:<64} {:>5} {:>3}%",
-        "VALID CASES", stats.valid_cases, valid_pct
-    );
+    println!("     {:<64} {:>5} {:>3}%", "VALID CASES", stats.valid_cases, valid_pct);
 
     let missing_cases = total_lines - stats.valid_cases;
     let missing_pct = calculate_percentage(missing_cases, total_lines);
-    println!("{:<64} {:>5} {:>3}%", "MISSING CASES", missing_cases, missing_pct);
+    println!("     {:<64} {:>5} {:>3}%", "MISSING CASES", missing_cases, missing_pct);
 
-    println!("{:<64} {:>5} {:>3}%", "TOTAL CASES", total_lines, 100);
+    println!("     {:<64} {:>5} {:>3}%", "TOTAL CASES", total_lines, 100);
     println!();
 }
 

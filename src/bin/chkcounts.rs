@@ -110,11 +110,7 @@ fn load_counters(filename: &str) -> IoResult<Vec<Counter>> {
 }
 
 fn extract_case_id(line: &str) -> &str {
-    if line.len() >= 9 {
-        &line[0..9]
-    } else {
-        line
-    }
+    if line.len() >= 9 { &line[0..9] } else { line }
 }
 
 fn determine_file_paths(args: &Args) -> (String, String, String) {
@@ -191,37 +187,48 @@ fn main() -> IoResult<()> {
         for counter in &mut counters {
             // Evaluate logic
             if let Some(ref logic) = counter.logic
-                && let Ok(matched) = logic.evaluate(questions, &line) {
-                    if matched {
-                        counter.logic_count += 1;
+                && let Ok(matched) = logic.evaluate(questions, &line)
+            {
+                if matched {
+                    counter.logic_count += 1;
+                }
+
+                // Count responses if question exists in RFL
+                if let Some(question) = questions.get(&counter.label) {
+                    let responses = question.responses(&line);
+                    let has_response = responses.iter().any(|r| !r.trim().is_empty());
+
+                    if has_response {
+                        counter.response_count += 1;
                     }
 
-                    // Count responses if question exists in RFL
-                    if let Some(question) = questions.get(&counter.label) {
-                        let responses = question.responses(&line);
-                        let has_response = responses.iter().any(|r| !r.trim().is_empty());
-
-                        if has_response {
-                            counter.response_count += 1;
-                        }
-
-                        // Verbose output for mismatches
-                        if args.verbose {
-                            let case_id = extract_case_id(&line);
-                            if !matched && has_response {
-                                println!(
-                                    "Logic did not match for {} but response not blank on case id {}.",
-                                    counter.label, case_id
-                                );
-                            } else if matched && !has_response {
-                                println!(
-                                    "Matched for {} but response blank on case id {}.",
-                                    counter.label, case_id
-                                );
-                            }
+                    // Verbose output for mismatches
+                    if args.verbose {
+                        let case_id = extract_case_id(&line);
+                        if !matched && has_response {
+                            println!(
+                                "Logic did not match for {} but response not blank on case id {}.",
+                                counter.label, case_id
+                            );
+                        } else if matched && !has_response {
+                            println!(
+                                "Matched for {} but response blank on case id {}.",
+                                counter.label, case_id
+                            );
                         }
                     }
                 }
+            } else {
+                // Count responses if question exists in RFL even if the logic is blank/not parsable
+                if let Some(question) = questions.get(&counter.label) {
+                    let responses = question.responses(&line);
+                    let has_response = responses.iter().any(|r| !r.trim().is_empty());
+
+                    if has_response {
+                        counter.response_count += 1;
+                    }
+                }
+            }
         }
 
         line_count += 1;
