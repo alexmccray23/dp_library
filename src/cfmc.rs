@@ -21,7 +21,7 @@ pub enum CfmcOperator {
     NumItems,   // NUMITEMS
     IsBlank,    // ^^B
     IsNotBlank, // ^^NB
-    Plus, // +
+    Plus,       // +
 
     // Value construction
     Comma, // ,
@@ -177,8 +177,8 @@ impl CfmcLogic {
             }
         } else {
             // Check for implicit equality like COMP(1) -> COMP = (1)
-            if let Some(paren_pos) = trimmed.find('(') {
-                if paren_pos > 0 && !trimmed.chars().take(paren_pos).any(char::is_whitespace) {
+            if let Some(paren_pos) = trimmed.find('(')
+                && paren_pos > 0 && !trimmed.chars().take(paren_pos).any(char::is_whitespace) {
                     let left_text = &trimmed[..paren_pos];
                     let right_text = &trimmed[paren_pos..];
 
@@ -191,7 +191,6 @@ impl CfmcLogic {
                         right: Box::new(right),
                     });
                 }
-            }
 
             // No operator found - this is a leaf node
             Ok(Self::parse_leaf(&trimmed))
@@ -218,7 +217,9 @@ impl CfmcLogic {
                 b')' if !in_quotes => {
                     level -= 1;
                     if level < 0 {
-                        return Err(format!("Unbalanced parentheses. Too many closing ')' at position {i}"));
+                        return Err(format!(
+                            "Unbalanced parentheses. Too many closing ')' at position {i}"
+                        ));
                     }
                 }
                 b'[' if !in_quotes => {
@@ -227,7 +228,9 @@ impl CfmcLogic {
                 b']' if !in_quotes => {
                     bracket_level -= 1;
                     if bracket_level < 0 {
-                        return Err(format!("Unbalanced brackets. Too many closing ']' at position {i}"));
+                        return Err(format!(
+                            "Unbalanced brackets. Too many closing ']' at position {i}"
+                        ));
                     }
                 }
                 _ => {}
@@ -251,10 +254,14 @@ impl CfmcLogic {
 
         // Final check for unclosed parentheses/brackets
         if level > 0 {
-            return Err(format!("Unbalanced parentheses. {level} unclosed '(' found"));
+            return Err(format!(
+                "Unbalanced parentheses. {level} unclosed '(' found"
+            ));
         }
         if bracket_level > 0 {
-            return Err(format!("Unbalanced brackets. {bracket_level} unclosed '[' found"));
+            return Err(format!(
+                "Unbalanced brackets. {bracket_level} unclosed '[' found"
+            ));
         }
         if in_quotes {
             return Err("Unclosed quote found".to_string());
@@ -421,7 +428,10 @@ impl CfmcLogic {
 
                 CfmcOperator::Plus => {
                     // Plus operator returns substring - this shouldn't be evaluated as boolean directly
-                    Err("Plus operator should not be used as a standalone boolean expression".to_string())
+                    Err(
+                        "Plus operator should not be used as a standalone boolean expression"
+                            .to_string(),
+                    )
                 }
 
                 CfmcOperator::Less
@@ -440,9 +450,7 @@ impl CfmcLogic {
                     Ok(!val)
                 }
 
-                CfmcOperator::IsBlank => {
-                    Self::evaluate_blank(operand, questions, response_line)
-                }
+                CfmcOperator::IsBlank => Self::evaluate_blank(operand, questions, response_line),
 
                 CfmcOperator::IsNotBlank => {
                     Ok(!Self::evaluate_blank(operand, questions, response_line)?)
@@ -469,15 +477,19 @@ impl CfmcLogic {
                     return Err(format!("Question {label} not found in RFL"));
                 }
             }
-            CfmcNode::Binary { 
-                operator: CfmcOperator::Plus, 
-                left: plus_left, 
-                right: plus_right 
+            CfmcNode::Binary {
+                operator: CfmcOperator::Plus,
+                left: plus_left,
+                right: plus_right,
             } => {
                 // Handle Plus operation on left side - extract substring
                 Self::evaluate_substring(plus_left, plus_right, questions, response_line)?
             }
-            _ => return Err("Left side of equality must be a question label or plus expression".to_string()),
+            _ => {
+                return Err(
+                    "Left side of equality must be a question label or plus expression".to_string(),
+                )
+            }
         };
 
         // Get expected value(s) from right side
@@ -559,14 +571,20 @@ impl CfmcLogic {
 
         // Get column.width specification from right side - should be a literal like "0.1"
         let CfmcNode::Literal(spec) = right else {
-            return Err("Right side of plus operator must be a column.width specification".to_string());
+            return Err(
+                "Right side of plus operator must be a column.width specification".to_string(),
+            );
         };
 
         // Parse column.width specification
         if let Some((col_str, width_str)) = spec.split_once('.') {
-            let col = col_str.parse::<usize>().map_err(|_| format!("Invalid column number: {col_str}"))?;
-            let width = width_str.parse::<usize>().map_err(|_| format!("Invalid width: {width_str}"))?;
-            
+            let col = col_str
+                .parse::<usize>()
+                .map_err(|_| format!("Invalid column number: {col_str}"))?;
+            let width = width_str
+                .parse::<usize>()
+                .map_err(|_| format!("Invalid width: {width_str}"))?;
+
             // Concatenate all responses from the question and extract substring
             let concatenated = left_responses.join("");
             if col + width <= concatenated.len() {
@@ -580,8 +598,6 @@ impl CfmcLogic {
             Err(format!("Invalid column.width specification: {spec}"))
         }
     }
-
-
 
     #[allow(clippy::only_used_in_recursion)]
     fn get_value_list(
@@ -990,7 +1006,7 @@ mod tests {
         let q02_question = RflQuestion {
             label: "Q02".to_string(),
             start_col: 1,
-            width: 3,  // Make room for 3 characters
+            width: 3, // Make room for 3 characters
             question_type: QuestionType::Fld,
             max_responses: 1,
             text_lines: Vec::new(),
@@ -1010,7 +1026,7 @@ mod tests {
         println!("Q02+0.1=\"A\" with response 'ABC': {result:?}");
         assert!(result.unwrap());
 
-        // Test with non-matching response 
+        // Test with non-matching response
         let response_line = "XBC";
         let result = logic.evaluate(&questions, response_line);
         println!("Q02+0.1=\"A\" with response 'XBC': {result:?}");

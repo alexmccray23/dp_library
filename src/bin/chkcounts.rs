@@ -110,7 +110,11 @@ fn load_counters(filename: &str) -> IoResult<Vec<Counter>> {
 }
 
 fn extract_case_id(line: &str) -> &str {
-    if line.len() >= 9 { &line[0..9] } else { line }
+    if line.len() >= 9 {
+        &line[0..9]
+    } else {
+        line
+    }
 }
 
 fn determine_file_paths(args: &Args) -> (String, String, String) {
@@ -186,8 +190,8 @@ fn main() -> IoResult<()> {
         // Process each counter
         for counter in &mut counters {
             // Evaluate logic
-            if let Some(ref logic) = counter.logic {
-                if let Ok(matched) = logic.evaluate(questions, &line) {
+            if let Some(ref logic) = counter.logic
+                && let Ok(matched) = logic.evaluate(questions, &line) {
                     if matched {
                         counter.logic_count += 1;
                     }
@@ -218,7 +222,6 @@ fn main() -> IoResult<()> {
                         }
                     }
                 }
-            }
         }
 
         line_count += 1;

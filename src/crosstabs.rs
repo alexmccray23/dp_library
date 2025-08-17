@@ -1,5 +1,5 @@
 use crate::rfl::RflQuestion;
-use calamine::{Data, Reader, open_workbook_auto};
+use calamine::{open_workbook_auto, Data, Reader};
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
@@ -34,24 +34,24 @@ pub struct CrossTabsLogic {
 impl CrossTabsLogic {
     fn convert_do_not_select(logic: &str) -> Option<String> {
         use regex::Regex;
-        
+
         // Pattern: "Q5: DO NOT SELECT :1 OR :3" -> "NOT(Q5:1,3)"
         let re = Regex::new(r"(\w+):\s*DO NOT SELECT\s*:([0-9]+)").ok()?;
-        
+
         if let Some(caps) = re.captures(logic) {
             let question = caps.get(1)?.as_str();
             let mut codes = vec![caps.get(2)?.as_str()];
-            
+
             // Find all additional OR'ed codes in the entire string
             let or_re = Regex::new(r"\s+OR\s*:([0-9]+)").ok()?;
-            
+
             for or_cap in or_re.captures_iter(logic) {
                 codes.push(or_cap.get(1)?.as_str());
             }
-            
+
             return Some(format!("NOT({}:{})", question, codes.join(",")));
         }
-        
+
         None
     }
 
@@ -69,20 +69,18 @@ impl CrossTabsLogic {
                 .replace("/(", ":(")
                 .replace("/Q", ":Q")
                 .replace('/', " OR ");
-            if let Some(colon_pos) = logic.find(':') {
-                if let Some(or_pos) = logic[colon_pos..].find(" OR ") {
+            if let Some(colon_pos) = logic.find(':')
+                && let Some(or_pos) = logic[colon_pos..].find(" OR ") {
                     let actual_or_pos = colon_pos + or_pos;
                     let codes = &logic[colon_pos + 1..actual_or_pos];
                     logic = logic.replace(" OR ", &format!("{codes} OR "));
                 }
-            }
         }
         // Handle "DO NOT SELECT" patterns: "Q5: DO NOT SELECT :1 OR :3" -> "NOT(Q5:1,3)"
-        if logic.contains("DO NOT SELECT") {
-            if let Some(converted) = Self::convert_do_not_select(&logic) {
+        if logic.contains("DO NOT SELECT")
+            && let Some(converted) = Self::convert_do_not_select(&logic) {
                 logic = converted;
             }
-        }
 
         // Handle "):" syntax...
         if logic.contains("):") {
@@ -367,7 +365,7 @@ impl CrossTabsLogic {
     #[allow(clippy::option_if_let_else)]
     fn handle_operators(&self, questions: &HashMap<String, RflQuestion>) -> String {
         let value = self.value.as_ref().unwrap();
-        
+
         if let Some(ref left) = self.left {
             let left_str = left.to_uncle_syntax(questions);
             match value.as_str() {
@@ -613,13 +611,12 @@ impl CrossTabsTable {
                     .crosstabs
                     .iter()
                     .any(|ct| ct.specs.to_inorder() == crosstab.base);
-                if !base_exists {
-                    if let Ok(base_crosstab) =
+                if !base_exists
+                    && let Ok(base_crosstab) =
                         CrossTab::new(&crosstab.base, &crosstab.base, "ALL", "NOPRINT")
                     {
                         additional_crosstabs.push(base_crosstab);
                     }
-                }
             }
         }
 
@@ -753,8 +750,8 @@ impl BannersTables {
                     &cleaned_index,
                     &format!("/BANNER {cleaned_index}"),
                 ));
-            } else if !subtitle.is_empty() {
-                if let Some(ref mut table) = current_table {
+            } else if !subtitle.is_empty()
+                && let Some(ref mut table) = current_table {
                     match table.add_banner(&title, &subtitle, &specs, &base, "") {
                         Ok(()) => {}
                         Err(e) => {
@@ -777,7 +774,6 @@ impl BannersTables {
                         }
                     }
                 }
-            }
         }
 
         if let Some(table) = current_table {
@@ -903,13 +899,12 @@ impl BannersTables {
             }
         }
 
-        if let (Some(_letter_pos), Some(digit_pos)) = (last_letter_pos, digit_start) {
-            if digit_pos == spec.len() - 1
-                || spec.chars().skip(digit_pos).all(|c| c.is_ascii_digit())
+        if let (Some(_letter_pos), Some(digit_pos)) = (last_letter_pos, digit_start)
+            && (digit_pos == spec.len() - 1
+                || spec.chars().skip(digit_pos).all(|c| c.is_ascii_digit()))
             {
                 return format!("{}:{}", &spec[..digit_pos], &spec[digit_pos..]);
             }
-        }
 
         spec.to_string()
     }
@@ -1046,7 +1041,7 @@ mod tests {
     fn test_do_not_select_integration() {
         // Test that the full parsing works
         let result = CrossTabsLogic::new("Q5: DO NOT SELECT :1 OR :3").unwrap();
-        
+
         // Now that we fixed the NOT handling, the to_inorder should work correctly
         let converted = result.to_inorder();
         assert_eq!(converted, "NOT(Q5:1,3)");

@@ -1,10 +1,10 @@
+use regex::Regex;
 use std::{
     collections::HashMap,
     fs::File,
     io::{BufRead, BufReader, Result as IoResult},
     sync::LazyLock,
 };
-use regex::Regex;
 
 static QUESTION_PREFIX_RE: LazyLock<Regex> =
     LazyLock::new(|| regex::Regex::new(r"^[A-Za-z]*\d+[A-Za-z]*\.?\s*").unwrap());
@@ -253,14 +253,13 @@ impl RflFile {
             if line.starts_with("The case ID will be in columns ") {
                 if let Some(location_str) = line.strip_prefix("The case ID will be in columns ") {
                     let parts: Vec<&str> = location_str.split('.').collect();
-                    if parts.len() == 2 {
-                        if let (Ok(start), Ok(width)) = (parts[0].parse(), parts[1].parse()) {
+                    if parts.len() == 2
+                        && let (Ok(start), Ok(width)) = (parts[0].parse(), parts[1].parse()) {
                             let question = RflQuestion::new_case_id(start, width);
                             rfl.questions
                                 .insert(question.label.clone(), question.clone());
                             rfl.questions_array.push(question);
                         }
-                    }
                 }
                 i += 1;
                 continue;
