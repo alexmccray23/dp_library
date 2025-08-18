@@ -516,6 +516,14 @@ impl CfmcLogic {
                     return Err(format!("Question {label} not found in RFL"));
                 }
             }
+            CfmcNode::Binary {
+                operator: CfmcOperator::Plus,
+                left: plus_left,
+                right: plus_right,
+            } => {
+                // Handle Plus operation on left side - extract substring
+                Self::evaluate_substring(plus_left, plus_right, questions, response_line)?
+            }
             _ => return Err("Left side of equality must be a question label".to_string()),
         };
 
