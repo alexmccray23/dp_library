@@ -205,7 +205,13 @@ impl RflQuestion {
         for i in 0..self.max_responses {
             let start_pos = (self.start_col - 1) + (i * self.width);
             if start_pos + self.width <= response_line.len() {
-                let response = response_line[start_pos..start_pos + self.width].to_string();
+                let mut response = response_line[start_pos..start_pos + self.width].to_string();
+
+                // TODO: generalize CASEID parsing to handle cases with AND without leading zeros
+                if self.label == "CASEID" {
+                    let non_zero_start = response.chars().take_while(|c| *c == '0').count();
+                    response = response[start_pos + non_zero_start..].to_string();
+                }
                 responses.push(response);
             }
         }
@@ -254,12 +260,13 @@ impl RflFile {
                 if let Some(location_str) = line.strip_prefix("The case ID will be in columns ") {
                     let parts: Vec<&str> = location_str.split('.').collect();
                     if parts.len() == 2
-                        && let (Ok(start), Ok(width)) = (parts[0].parse(), parts[1].parse()) {
-                            let question = RflQuestion::new_case_id(start, width);
-                            rfl.questions
-                                .insert(question.label.clone(), question.clone());
-                            rfl.questions_array.push(question);
-                        }
+                        && let (Ok(start), Ok(width)) = (parts[0].parse(), parts[1].parse())
+                    {
+                        let question = RflQuestion::new_case_id(start, width);
+                        rfl.questions
+                            .insert(question.label.clone(), question.clone());
+                        rfl.questions_array.push(question);
+                    }
                 }
                 i += 1;
                 continue;

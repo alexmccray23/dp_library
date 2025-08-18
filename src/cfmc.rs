@@ -1009,6 +1009,14 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_caseid() {
+        let logic = CfmcLogic::parse("[CASEID#101]").unwrap();
+        let output = logic.to_string();
+        println!("Parsed: {output}");
+        assert_eq!(output, "CASEID(101)");
+    }
+
+    #[test]
     fn test_evaluate_plus_expression() {
         let mut questions = HashMap::new();
         let q02_question = RflQuestion {
