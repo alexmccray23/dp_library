@@ -178,19 +178,21 @@ impl CfmcLogic {
         } else {
             // Check for implicit equality like COMP(1) -> COMP = (1)
             if let Some(paren_pos) = trimmed.find('(')
-                && paren_pos > 0 && !trimmed.chars().take(paren_pos).any(char::is_whitespace) {
-                    let left_text = &trimmed[..paren_pos];
-                    let right_text = &trimmed[paren_pos..];
+                && paren_pos > 0
+                && !trimmed.chars().take(paren_pos).any(char::is_whitespace)
+            {
+                let left_text = &trimmed[..paren_pos];
+                let right_text = &trimmed[paren_pos..];
 
-                    let left = Self::parse_node(left_text)?;
-                    let right = Self::parse_node(right_text)?;
+                let left = Self::parse_node(left_text)?;
+                let right = Self::parse_node(right_text)?;
 
-                    return Ok(CfmcNode::Binary {
-                        operator: CfmcOperator::Equal,
-                        left: Box::new(left),
-                        right: Box::new(right),
-                    });
-                }
+                return Ok(CfmcNode::Binary {
+                    operator: CfmcOperator::Equal,
+                    left: Box::new(left),
+                    right: Box::new(right),
+                });
+            }
 
             // No operator found - this is a leaf node
             Ok(Self::parse_leaf(&trimmed))
@@ -488,7 +490,7 @@ impl CfmcLogic {
             _ => {
                 return Err(
                     "Left side of equality must be a question label or plus expression".to_string(),
-                )
+                );
             }
         };
 
@@ -669,6 +671,16 @@ impl CfmcLogic {
                     if let Some((start, end)) = expected_trimmed.split_once('-') {
                         let start = start.trim();
                         let end = end.trim();
+                        if let (Ok(num_resp), Ok(num_start), Ok(num_end)) = (
+                            response_trimmed.parse::<u32>(),
+                            start.parse::<u32>(),
+                            end.parse::<u32>(),
+                        ) && num_resp >= num_start
+                            && num_resp <= num_end
+                        {
+                            return true;
+                        }
+
                         if response_trimmed.len() == start.len()
                             && response_trimmed.as_str() >= start
                             && response_trimmed.as_str() <= end
@@ -676,6 +688,12 @@ impl CfmcLogic {
                             return true;
                         }
                     }
+                } else if let (Ok(num_resp), Ok(num_exp)) = (
+                    response_trimmed.parse::<u32>(),
+                    expected_trimmed.parse::<u32>(),
+                ) && num_resp == num_exp
+                {
+                    return true;
                 } else if response_trimmed == expected_trimmed {
                     return true;
                 }
@@ -1047,5 +1065,150 @@ mod tests {
         let result = logic.evaluate(&questions, response_line);
         println!("Q02+0.1=\"A\" with response 'XBC': {result:?}");
         assert!(!result.unwrap());
+    }
+
+    #[test]
+    fn test_caseid_parsing_with_leading_zeros() {
+        let mut questions = HashMap::new();
+        let caseid_question = RflQuestion {
+            label: "CASEID".to_string(),
+            start_col: 1,
+            width: 6,
+            question_type: QuestionType::Fld,
+            max_responses: 1,
+            text_lines: Vec::new(),
+            response_codes: HashMap::new(),
+            min_value: None,
+            max_value: None,
+            exceptions: Vec::new(),
+        };
+        questions.insert("CASEID".to_string(), caseid_question);
+
+        // Test parsing CASEID with leading zeros - should match 101 regardless of leading zeros
+        let logic = CfmcLogic::parse("CASEID(101)").unwrap();
+
+        // Response with leading zeros should match
+        let response_line = "000101";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+
+        // Response without leading zeros should also match
+        let response_line = "101   "; // padded with spaces
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+
+        // Different value should not match
+        let response_line = "000102";
+        assert!(!logic.evaluate(&questions, response_line).unwrap());
+    }
+
+    #[test]
+    fn test_caseid_range_with_leading_zeros() {
+        let mut questions = HashMap::new();
+        let caseid_question = RflQuestion {
+            label: "CASEID".to_string(),
+            start_col: 1,
+            width: 6,
+            question_type: QuestionType::Fld,
+            max_responses: 1,
+            text_lines: Vec::new(),
+            response_codes: HashMap::new(),
+            min_value: None,
+            max_value: None,
+            exceptions: Vec::new(),
+        };
+        questions.insert("CASEID".to_string(), caseid_question);
+
+        // Test range evaluation with leading zeros
+        let logic = CfmcLogic::parse("CASEID(100-105)").unwrap();
+
+        // Values in range with leading zeros should match
+        let response_line = "000100";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+
+        let response_line = "000103";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+
+        let response_line = "000105";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+
+        // Values outside range should not match
+        let response_line = "000099";
+        assert!(!logic.evaluate(&questions, response_line).unwrap());
+
+        let response_line = "000106";
+        assert!(!logic.evaluate(&questions, response_line).unwrap());
+    }
+
+    #[test]
+    fn test_numeric_vs_string_comparison() {
+        let mut questions = HashMap::new();
+        let test_question = RflQuestion {
+            label: "TEST".to_string(),
+            start_col: 1,
+            width: 4,
+            question_type: QuestionType::Fld,
+            max_responses: 1,
+            text_lines: Vec::new(),
+            response_codes: HashMap::new(),
+            min_value: None,
+            max_value: None,
+            exceptions: Vec::new(),
+        };
+        questions.insert("TEST".to_string(), test_question);
+
+        // Test that numeric parsing takes precedence over string comparison
+        let logic = CfmcLogic::parse("TEST(5)").unwrap();
+
+        // "05" should match "5" numerically
+        let response_line = "05  ";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+
+        // "005" should match "5" numerically
+        let response_line = "0005";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+
+        // Non-numeric strings should fall back to string comparison
+        let logic = CfmcLogic::parse("TEST(\"ABC\")").unwrap();
+
+        let response_line = "ABC ";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+
+        let response_line = "XYZ ";
+        assert!(!logic.evaluate(&questions, response_line).unwrap());
+    }
+
+    #[test]
+    fn test_mixed_numeric_string_ranges() {
+        let mut questions = HashMap::new();
+        let test_question = RflQuestion {
+            label: "TEST".to_string(),
+            start_col: 1,
+            width: 3,
+            question_type: QuestionType::Fld,
+            max_responses: 1,
+            text_lines: Vec::new(),
+            response_codes: HashMap::new(),
+            min_value: None,
+            max_value: None,
+            exceptions: Vec::new(),
+        };
+        questions.insert("TEST".to_string(), test_question);
+
+        // Test numeric range
+        let logic = CfmcLogic::parse("TEST(8-12)").unwrap();
+
+        let response_line = "010"; // Should match as 10
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+
+        let response_line = "007"; // Should not match as 7 < 8
+        assert!(!logic.evaluate(&questions, response_line).unwrap());
+
+        // Test string range (alphabetical)
+        let logic = CfmcLogic::parse("TEST(\"A\"-\"C\")").unwrap();
+
+        let response_line = "B  ";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+
+        let response_line = "D  ";
+        assert!(!logic.evaluate(&questions, response_line).unwrap());
     }
 }

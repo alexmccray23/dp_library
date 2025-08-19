@@ -205,13 +205,13 @@ impl RflQuestion {
         for i in 0..self.max_responses {
             let start_pos = (self.start_col - 1) + (i * self.width);
             if start_pos + self.width <= response_line.len() {
-                let mut response = response_line[start_pos..start_pos + self.width].to_string();
+                let response = response_line[start_pos..start_pos + self.width].to_string();
 
                 // TODO: generalize CASEID parsing to handle cases with AND without leading zeros
-                if self.label == "CASEID" {
-                    let non_zero_start = response.chars().take_while(|c| *c == '0').count();
-                    response = response[start_pos + non_zero_start..].to_string();
-                }
+                // if self.label == "CASEID" {
+                //     let non_zero_start = response.chars().take_while(|c| *c == '0').count();
+                //     response = response[non_zero_start..].to_string();
+                // }
                 responses.push(response);
             }
         }
