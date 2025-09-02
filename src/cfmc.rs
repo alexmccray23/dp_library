@@ -324,11 +324,12 @@ impl CfmcLogic {
             | CfmcOperator::LessEqual
             | CfmcOperator::GreaterEqual => 30,
             CfmcOperator::Plus => 40,
-            CfmcOperator::Comma | CfmcOperator::Dash => 50,
+            CfmcOperator::Comma => 50,
+            CfmcOperator::Dash => 60,
             CfmcOperator::Not
             | CfmcOperator::NumItems
             | CfmcOperator::IsBlank
-            | CfmcOperator::IsNotBlank => 60,
+            | CfmcOperator::IsNotBlank => 70,
         }
     }
 
