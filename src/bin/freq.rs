@@ -63,35 +63,39 @@ impl WeightSpec {
     fn parse(weight_spec: &str) -> Result<Self, String> {
         let parts: Vec<&str> = weight_spec.split('.').collect();
         if parts.len() != 2 {
-            return Err("Weight specification must be in format start_col.width (e.g., 1000.7)".to_string());
+            return Err(
+                "Weight specification must be in format start_col.width (e.g., 1000.7)".to_string(),
+            );
         }
-        
-        let start_col = parts[0].parse::<usize>()
+
+        let start_col = parts[0]
+            .parse::<usize>()
             .map_err(|_| "Invalid start column number".to_string())?;
-        let width = parts[1].parse::<usize>()
+        let width = parts[1]
+            .parse::<usize>()
             .map_err(|_| "Invalid width number".to_string())?;
-            
+
         if start_col == 0 {
             return Err("Column numbers are 1-indexed, start_col must be >= 1".to_string());
         }
         if width == 0 {
             return Err("Width must be >= 1".to_string());
         }
-        
+
         Ok(Self { start_col, width })
     }
-    
+
     fn extract_weight(&self, line: &str) -> f64 {
         let start_idx = self.start_col - 1; // Convert to 0-indexed
         let end_idx = start_idx + self.width;
-        
+
         if start_idx >= line.len() {
             return 1.0; // Default weight if line is too short
         }
-        
+
         let end_idx = end_idx.min(line.len());
         let weight_str = &line[start_idx..end_idx];
-        
+
         weight_str.trim().parse::<f64>().unwrap_or(1.0)
     }
 }
@@ -114,7 +118,12 @@ fn calculate_percentage(count: f64, total: f64) -> u32 {
     }
 }
 
-fn print_question_frequency(question: &RflQuestion, stats: &FrequencyStats, _total_lines: usize, total_weight: f64) {
+fn print_question_frequency(
+    question: &RflQuestion,
+    stats: &FrequencyStats,
+    _total_lines: usize,
+    total_weight: f64,
+) {
     println!("{}:", question.label.to_uppercase());
 
     let main_text = question.main_text();
@@ -141,16 +150,28 @@ fn print_question_frequency(question: &RflQuestion, stats: &FrequencyStats, _tot
 
     // Print summary statistics
     let total_pct = calculate_percentage(total_responses, total_weight);
-    println!("     {:<64} {:>5.0} {:>3}%", "TOTAL RESPONSES", total_responses, total_pct);
+    println!(
+        "     {:<64} {:>5.0} {:>3}%",
+        "TOTAL RESPONSES", total_responses, total_pct
+    );
 
     let valid_pct = calculate_percentage(stats.valid_cases, total_weight);
-    println!("     {:<64} {:>5.0} {:>3}%", "VALID CASES", stats.valid_cases, valid_pct);
+    println!(
+        "     {:<64} {:>5.0} {:>3}%",
+        "VALID CASES", stats.valid_cases, valid_pct
+    );
 
     let missing_weight = total_weight - stats.valid_cases;
     let missing_pct = calculate_percentage(missing_weight, total_weight);
-    println!("     {:<64} {:>5.0} {:>3}%", "MISSING CASES", missing_weight, missing_pct);
+    println!(
+        "     {:<64} {:>5.0} {:>3}%",
+        "MISSING CASES", missing_weight, missing_pct
+    );
 
-    println!("     {:<64} {:>5.0} {:>3}%", "TOTAL CASES", total_weight, 100);
+    println!(
+        "     {:<64} {:>5.0} {:>3}%",
+        "TOTAL CASES", total_weight, 100
+    );
     println!();
 }
 
@@ -195,20 +216,22 @@ fn main() -> IoResult<()> {
     println!("Using layout file   {layout_filename}");
 
     // Parse weight specification if provided
-    let weight_spec = if let Some(weight_str) = &args.weight {
-        match WeightSpec::parse(weight_str) {
+    let weight_spec = args
+        .weight
+        .as_ref()
+        .map(|weight_str| match WeightSpec::parse(weight_str) {
             Ok(spec) => {
-                println!("Using weights from column {} width {}", spec.start_col, spec.width);
-                Some(spec)
-            },
+                println!(
+                    "Using weights from column {} width {}",
+                    spec.start_col, spec.width
+                );
+                spec
+            }
             Err(e) => {
                 eprintln!("Error parsing weight specification: {e}");
                 std::process::exit(1);
             }
-        }
-    } else {
-        None
-    };
+        });
 
     // Load RFL file
     let rfl_file = RflFile::from_file(&layout_filename)?;
@@ -245,7 +268,10 @@ fn main() -> IoResult<()> {
             }
             all_stats.insert(
                 question_label.clone(),
-                FrequencyStats { punch_counts, valid_cases: 0.0 },
+                FrequencyStats {
+                    punch_counts,
+                    valid_cases: 0.0,
+                },
             );
         }
     }
@@ -259,7 +285,9 @@ fn main() -> IoResult<()> {
         let line = line?;
 
         // Extract weight for this line
-        let weight = weight_spec.as_ref().map_or(1.0, |spec| spec.extract_weight(&line));
+        let weight = weight_spec
+            .as_ref()
+            .map_or(1.0, |spec| spec.extract_weight(&line));
         total_weight += weight;
 
         // Process each question for this line
@@ -271,15 +299,18 @@ fn main() -> IoResult<()> {
                 for response in &responses {
                     let response = response.trim();
                     if !response.is_empty()
-                        && let Some(stats) = all_stats.get_mut(question_label) {
-                            *stats.punch_counts.entry(response.to_string()).or_insert(0.0) += weight;
-                            has_response = true;
-                        }
-                }
-                if has_response
-                    && let Some(stats) = all_stats.get_mut(question_label) {
-                        stats.valid_cases += weight;
+                        && let Some(stats) = all_stats.get_mut(question_label)
+                    {
+                        *stats
+                            .punch_counts
+                            .entry(response.to_string())
+                            .or_insert(0.0) += weight;
+                        has_response = true;
                     }
+                }
+                if has_response && let Some(stats) = all_stats.get_mut(question_label) {
+                    stats.valid_cases += weight;
+                }
             }
         }
 
@@ -294,9 +325,10 @@ fn main() -> IoResult<()> {
     // Output frequency tables for each question
     for question_label in &questions_to_process {
         if let Some(question) = questions_map.get(question_label)
-            && let Some(stats) = all_stats.get(question_label) {
-                print_question_frequency(question, stats, line_count, total_weight);
-            }
+            && let Some(stats) = all_stats.get(question_label)
+        {
+            print_question_frequency(question, stats, line_count, total_weight);
+        }
     }
 
     Ok(())
