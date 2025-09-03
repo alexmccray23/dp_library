@@ -286,8 +286,8 @@ impl CfmcLogic {
             Some((CfmcOperator::IsNotBlank, 4))
         } else if remaining.starts_with(b"NOT") {
             Some((CfmcOperator::Not, 3))
-        } else if remaining.starts_with(b"AND") {
-            Some((CfmcOperator::And, 3))
+        } else if remaining.starts_with(b" AND ") {
+            Some((CfmcOperator::And, 5))
         } else if remaining.starts_with(b"^^B") {
             Some((CfmcOperator::IsBlank, 3))
         } else if remaining.starts_with(b"<=") {
@@ -296,8 +296,8 @@ impl CfmcLogic {
             Some((CfmcOperator::GreaterEqual, 2))
         } else if remaining.starts_with(b"<>") {
             Some((CfmcOperator::NotEqual, 2))
-        } else if remaining.starts_with(b"OR") {
-            Some((CfmcOperator::Or, 2))
+        } else if remaining.starts_with(b" OR ") {
+            Some((CfmcOperator::Or, 4))
         } else if !remaining.is_empty() {
             match remaining[0] {
                 b'<' => Some((CfmcOperator::Less, 1)),
@@ -336,10 +336,10 @@ impl CfmcLogic {
     const fn operator_length(op: &CfmcOperator) -> usize {
         match op {
             CfmcOperator::NumItems => 8,
-            CfmcOperator::IsNotBlank => 4,
-            CfmcOperator::Not | CfmcOperator::And | CfmcOperator::IsBlank => 3,
-            CfmcOperator::Or
-            | CfmcOperator::LessEqual
+            CfmcOperator::And => 5,
+            CfmcOperator::IsNotBlank | CfmcOperator::Or => 4,
+            CfmcOperator::Not | CfmcOperator::IsBlank => 3,
+            CfmcOperator::LessEqual
             | CfmcOperator::GreaterEqual
             | CfmcOperator::NotEqual => 2,
             _ => 1,
