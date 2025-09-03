@@ -175,11 +175,8 @@ fn print_question_frequency(
     println!();
 }
 
-fn main() -> IoResult<()> {
-    let args = Args::parse();
-
-    // Determine layout file
-    let layout_filename = args.layout_file.map_or_else(
+fn determine_files(args: &Args) -> (String, String) {
+    let layout_filename = args.layout_file.clone().map_or_else(
         || {
             find_file_with_extension(".", &[".rfl"]).unwrap_or_else(|| {
                 eprintln!("Could not find rfl file in the current directory");
@@ -189,8 +186,7 @@ fn main() -> IoResult<()> {
         |file| file,
     );
 
-    // Determine data file
-    let data_filename = args.data_file.map_or_else(
+    let data_filename = args.data_file.clone().map_or_else(
         || {
             find_file_with_extension(".", &[".fin"])
                 .or_else(|| find_file_with_extension(".", &[".rft"]))
@@ -202,7 +198,6 @@ fn main() -> IoResult<()> {
         |file| file,
     );
 
-    // Verify files exist
     if !Path::new(&layout_filename).exists() {
         eprintln!("{layout_filename} not found in the current directory");
         std::process::exit(1);
@@ -215,38 +210,35 @@ fn main() -> IoResult<()> {
     println!("Using data file     {data_filename}");
     println!("Using layout file   {layout_filename}");
 
-    // Parse weight specification if provided
-    let weight_spec = args
-        .weight
-        .as_ref()
-        .map(|weight_str| match WeightSpec::parse(weight_str) {
-            Ok(spec) => {
-                println!(
-                    "Using weights from column {} width {}",
-                    spec.start_col, spec.width
-                );
-                spec
-            }
-            Err(e) => {
-                eprintln!("Error parsing weight specification: {e}");
-                std::process::exit(1);
-            }
-        });
+    (layout_filename, data_filename)
+}
 
-    // Load RFL file
-    let rfl_file = RflFile::from_file(&layout_filename)?;
+#[allow(clippy::single_option_map)]
+fn parse_weight_spec(weight_arg: Option<&String>) -> Option<WeightSpec> {
+    weight_arg.map(|weight_str| match WeightSpec::parse(weight_str) {
+        Ok(spec) => {
+            println!(
+                "Using weights from column {} width {}",
+                spec.start_col, spec.width
+            );
+            spec
+        }
+        Err(e) => {
+            eprintln!("Error parsing weight specification: {e}");
+            std::process::exit(1);
+        }
+    })
+}
+
+fn determine_questions_to_process(args: &Args, rfl_file: &RflFile) -> Vec<String> {
     let questions_map = rfl_file.questions();
-
-    // Determine which questions to process
     let mut questions_to_process = Vec::new();
 
     if args.questions.is_empty() {
-        // No questions specified - process all questions from RFL
         for question in rfl_file.questions_array() {
             questions_to_process.push(question.label.clone());
         }
     } else {
-        // Validate specified questions exist in RFL
         for question_label in &args.questions {
             let question_label = question_label.to_uppercase();
             if !questions_map.contains_key(&question_label) {
@@ -257,12 +249,18 @@ fn main() -> IoResult<()> {
         }
     }
 
-    // Initialize frequency statistics for all questions
+    questions_to_process
+}
+
+fn initialize_stats(
+    questions_to_process: &[String],
+    questions_map: &HashMap<String, RflQuestion>,
+) -> HashMap<String, FrequencyStats> {
     let mut all_stats: HashMap<String, FrequencyStats> = HashMap::new();
-    for question_label in &questions_to_process {
+
+    for question_label in questions_to_process {
         if let Some(question) = questions_map.get(question_label) {
             let mut punch_counts = HashMap::new();
-            // Initialize punch counts from RFL definition
             for punch_code in question.response_codes.keys() {
                 punch_counts.insert(punch_code.clone(), 0.0);
             }
@@ -276,22 +274,28 @@ fn main() -> IoResult<()> {
         }
     }
 
-    // Process data file once
-    let data_file = File::open(&data_filename)?;
+    all_stats
+}
+
+fn process_data_file(
+    data_filename: &str,
+    weight_spec: Option<&WeightSpec>,
+    questions_to_process: &[String],
+    questions_map: &HashMap<String, RflQuestion>,
+    all_stats: &mut HashMap<String, FrequencyStats>,
+) -> IoResult<(usize, f64)> {
+    let data_file = File::open(data_filename)?;
     let reader = BufReader::new(data_file);
     let mut line_count = 0;
     let mut total_weight = 0.0;
+
     for line in reader.lines() {
         let line = line?;
 
-        // Extract weight for this line
-        let weight = weight_spec
-            .as_ref()
-            .map_or(1.0, |spec| spec.extract_weight(&line));
+        let weight = weight_spec.map_or(1.0, |spec| spec.extract_weight(&line));
         total_weight += weight;
 
-        // Process each question for this line
-        for question_label in &questions_to_process {
+        for question_label in questions_to_process {
             if let Some(question) = questions_map.get(question_label) {
                 let responses = question.responses(&line);
                 let mut has_response = false;
@@ -322,7 +326,29 @@ fn main() -> IoResult<()> {
     }
     println!();
 
-    // Output frequency tables for each question
+    Ok((line_count, total_weight))
+}
+
+fn main() -> IoResult<()> {
+    let args = Args::parse();
+
+    let (layout_filename, data_filename) = determine_files(&args);
+    let weight_spec = parse_weight_spec(args.weight.as_ref());
+
+    let rfl_file = RflFile::from_file(&layout_filename)?;
+    let questions_map = rfl_file.questions();
+
+    let questions_to_process = determine_questions_to_process(&args, &rfl_file);
+    let mut all_stats = initialize_stats(&questions_to_process, questions_map);
+
+    let (line_count, total_weight) = process_data_file(
+        &data_filename,
+        weight_spec.as_ref(),
+        &questions_to_process,
+        questions_map,
+        &mut all_stats,
+    )?;
+
     for question_label in &questions_to_process {
         if let Some(question) = questions_map.get(question_label)
             && let Some(stats) = all_stats.get(question_label)
