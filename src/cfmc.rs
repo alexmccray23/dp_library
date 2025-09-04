@@ -1,5 +1,5 @@
+use ahash::AHashMap;
 use crate::rfl::RflQuestion;
-use std::collections::HashMap;
 
 // CFMC Logic Classes
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -379,7 +379,7 @@ impl CfmcLogic {
     /// Returns an error if a question reference is not found in the RFL or if evaluation fails
     pub fn evaluate(
         &self,
-        questions: &HashMap<String, RflQuestion>,
+        questions: &AHashMap<String, RflQuestion>,
         response_line: &str,
     ) -> Result<bool, String> {
         self.evaluate_node(&self.root, questions, response_line)
@@ -388,7 +388,7 @@ impl CfmcLogic {
     fn evaluate_node(
         &self,
         node: &CfmcNode,
-        questions: &HashMap<String, RflQuestion>,
+        questions: &AHashMap<String, RflQuestion>,
         response_line: &str,
     ) -> Result<bool, String> {
         match node {
@@ -468,7 +468,7 @@ impl CfmcLogic {
         &self,
         left: &CfmcNode,
         right: &CfmcNode,
-        questions: &HashMap<String, RflQuestion>,
+        questions: &AHashMap<String, RflQuestion>,
         response_line: &str,
     ) -> Result<bool, String> {
         // Get responses from left side
@@ -506,7 +506,7 @@ impl CfmcLogic {
         &self,
         left: &CfmcNode,
         right: &CfmcNode,
-        questions: &HashMap<String, RflQuestion>,
+        questions: &AHashMap<String, RflQuestion>,
         response_line: &str,
         operator: &CfmcOperator,
     ) -> Result<bool, String> {
@@ -543,7 +543,7 @@ impl CfmcLogic {
 
     fn evaluate_blank(
         left: &CfmcNode,
-        questions: &HashMap<String, RflQuestion>,
+        questions: &AHashMap<String, RflQuestion>,
         response_line: &str,
     ) -> Result<bool, String> {
         // Get responses from left side (should be a question)
@@ -565,7 +565,7 @@ impl CfmcLogic {
     fn evaluate_substring(
         left: &CfmcNode,
         right: &CfmcNode,
-        questions: &HashMap<String, RflQuestion>,
+        questions: &AHashMap<String, RflQuestion>,
         response_line: &str,
     ) -> Result<Vec<String>, String> {
         // Get responses from left side (should be a question)
@@ -614,7 +614,7 @@ impl CfmcLogic {
     fn get_value_list(
         &self,
         node: &CfmcNode,
-        questions: &HashMap<String, RflQuestion>,
+        questions: &AHashMap<String, RflQuestion>,
         response_line: &str,
     ) -> Result<Vec<String>, String> {
         match node {
@@ -869,7 +869,7 @@ mod tests {
 
     #[test]
     fn test_evaluate_simple_equality() {
-        let mut questions = HashMap::new();
+        let mut questions = AHashMap::new();
         let question = RflQuestion {
             label: "COMP".to_string(),
             start_col: 1,
@@ -877,7 +877,7 @@ mod tests {
             question_type: QuestionType::Fld,
             max_responses: 1,
             text_lines: Vec::new(),
-            response_codes: HashMap::new(),
+            response_codes: AHashMap::new(),
             min_value: None,
             max_value: None,
             exceptions: Vec::new(),
@@ -897,7 +897,7 @@ mod tests {
 
     #[test]
     fn test_evaluate_and_expression() {
-        let mut questions = HashMap::new();
+        let mut questions = AHashMap::new();
 
         let comp_question = RflQuestion {
             label: "COMP".to_string(),
@@ -906,7 +906,7 @@ mod tests {
             question_type: QuestionType::Fld,
             max_responses: 1,
             text_lines: Vec::new(),
-            response_codes: HashMap::new(),
+            response_codes: AHashMap::new(),
             min_value: None,
             max_value: None,
             exceptions: Vec::new(),
@@ -919,7 +919,7 @@ mod tests {
             question_type: QuestionType::Fld,
             max_responses: 1,
             text_lines: Vec::new(),
-            response_codes: HashMap::new(),
+            response_codes: AHashMap::new(),
             min_value: None,
             max_value: None,
             exceptions: Vec::new(),
@@ -945,7 +945,7 @@ mod tests {
 
     #[test]
     fn test_evaluate_comma_values() {
-        let mut questions = HashMap::new();
+        let mut questions = AHashMap::new();
         let question = RflQuestion {
             label: "COMP".to_string(),
             start_col: 1,
@@ -953,7 +953,7 @@ mod tests {
             question_type: QuestionType::Fld,
             max_responses: 1,
             text_lines: Vec::new(),
-            response_codes: HashMap::new(),
+            response_codes: AHashMap::new(),
             min_value: None,
             max_value: None,
             exceptions: Vec::new(),
@@ -981,7 +981,7 @@ mod tests {
 
     #[test]
     fn test_evaluate_range_values() {
-        let mut questions = HashMap::new();
+        let mut questions = AHashMap::new();
         let question = RflQuestion {
             label: "QB".to_string(),
             start_col: 1,
@@ -989,7 +989,7 @@ mod tests {
             question_type: QuestionType::Fld,
             max_responses: 1,
             text_lines: Vec::new(),
-            response_codes: HashMap::new(),
+            response_codes: AHashMap::new(),
             min_value: None,
             max_value: None,
             exceptions: Vec::new(),
@@ -1037,7 +1037,7 @@ mod tests {
 
     #[test]
     fn test_evaluate_plus_expression() {
-        let mut questions = HashMap::new();
+        let mut questions = AHashMap::new();
         let q02_question = RflQuestion {
             label: "Q02".to_string(),
             start_col: 1,
@@ -1045,7 +1045,7 @@ mod tests {
             question_type: QuestionType::Fld,
             max_responses: 1,
             text_lines: Vec::new(),
-            response_codes: HashMap::new(),
+            response_codes: AHashMap::new(),
             min_value: None,
             max_value: None,
             exceptions: Vec::new(),
@@ -1070,7 +1070,7 @@ mod tests {
 
     #[test]
     fn test_caseid_parsing_with_leading_zeros() {
-        let mut questions = HashMap::new();
+        let mut questions = AHashMap::new();
         let caseid_question = RflQuestion {
             label: "CASEID".to_string(),
             start_col: 1,
@@ -1078,7 +1078,7 @@ mod tests {
             question_type: QuestionType::Fld,
             max_responses: 1,
             text_lines: Vec::new(),
-            response_codes: HashMap::new(),
+            response_codes: AHashMap::new(),
             min_value: None,
             max_value: None,
             exceptions: Vec::new(),
@@ -1103,7 +1103,7 @@ mod tests {
 
     #[test]
     fn test_caseid_range_with_leading_zeros() {
-        let mut questions = HashMap::new();
+        let mut questions = AHashMap::new();
         let caseid_question = RflQuestion {
             label: "CASEID".to_string(),
             start_col: 1,
@@ -1111,7 +1111,7 @@ mod tests {
             question_type: QuestionType::Fld,
             max_responses: 1,
             text_lines: Vec::new(),
-            response_codes: HashMap::new(),
+            response_codes: AHashMap::new(),
             min_value: None,
             max_value: None,
             exceptions: Vec::new(),
@@ -1141,7 +1141,7 @@ mod tests {
 
     #[test]
     fn test_numeric_vs_string_comparison() {
-        let mut questions = HashMap::new();
+        let mut questions = AHashMap::new();
         let test_question = RflQuestion {
             label: "TEST".to_string(),
             start_col: 1,
@@ -1149,7 +1149,7 @@ mod tests {
             question_type: QuestionType::Fld,
             max_responses: 1,
             text_lines: Vec::new(),
-            response_codes: HashMap::new(),
+            response_codes: AHashMap::new(),
             min_value: None,
             max_value: None,
             exceptions: Vec::new(),
@@ -1179,7 +1179,7 @@ mod tests {
 
     #[test]
     fn test_mixed_numeric_string_ranges() {
-        let mut questions = HashMap::new();
+        let mut questions = AHashMap::new();
         let test_question = RflQuestion {
             label: "TEST".to_string(),
             start_col: 1,
@@ -1187,7 +1187,7 @@ mod tests {
             question_type: QuestionType::Fld,
             max_responses: 1,
             text_lines: Vec::new(),
-            response_codes: HashMap::new(),
+            response_codes: AHashMap::new(),
             min_value: None,
             max_value: None,
             exceptions: Vec::new(),

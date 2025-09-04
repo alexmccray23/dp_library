@@ -1,6 +1,6 @@
+use ahash::AHashMap;
 use regex::Regex;
 use std::{
-    collections::HashMap,
     fs::File,
     io::{BufRead, BufReader, Result as IoResult},
     sync::LazyLock,
@@ -33,7 +33,7 @@ impl QuestionType {
 pub struct RflQuestion {
     pub label: String,
     pub text_lines: Vec<String>,
-    pub response_codes: HashMap<String, String>,
+    pub response_codes: AHashMap<String, String>,
     pub exceptions: Vec<String>,
     pub start_col: usize,
     pub width: usize,
@@ -53,7 +53,7 @@ impl RflQuestion {
             question_type: QuestionType::Num,
             max_responses: 1,
             text_lines: vec!["CASE ID".to_string()],
-            response_codes: HashMap::new(),
+            response_codes: AHashMap::new(),
             min_value: None,
             max_value: None,
             exceptions: Vec::new(),
@@ -73,7 +73,7 @@ impl RflQuestion {
             question_type: QuestionType::Fld,
             max_responses: 1,
             text_lines: Vec::new(),
-            response_codes: HashMap::new(),
+            response_codes: AHashMap::new(),
             min_value: None,
             max_value: None,
             exceptions: Vec::new(),
@@ -221,7 +221,7 @@ impl RflQuestion {
 
 #[derive(Debug)]
 pub struct RflFile {
-    questions: HashMap<String, RflQuestion>,
+    questions: AHashMap<String, RflQuestion>,
     questions_array: Vec<RflQuestion>,
 }
 
@@ -247,7 +247,7 @@ impl RflFile {
     /// Returns an error if parsing fails
     pub fn from_lines(lines: &[String]) -> IoResult<Self> {
         let mut rfl = Self {
-            questions: HashMap::new(),
+            questions: AHashMap::new(),
             questions_array: Vec::new(),
         };
 
@@ -316,7 +316,7 @@ impl RflFile {
     }
 
     #[must_use]
-    pub const fn questions(&self) -> &HashMap<String, RflQuestion> {
+    pub const fn questions(&self) -> &AHashMap<String, RflQuestion> {
         &self.questions
     }
 
@@ -412,7 +412,7 @@ mod tests {
             question_type: QuestionType::Fld,
             max_responses: 3,
             text_lines: Vec::new(),
-            response_codes: HashMap::new(),
+            response_codes: AHashMap::new(),
             min_value: None,
             max_value: None,
             exceptions: Vec::new(),
@@ -443,7 +443,7 @@ mod tests {
                 "ENTER NUMBER should be filtered".to_string(),
                 "Q17. Another question".to_string(),
             ],
-            response_codes: HashMap::new(),
+            response_codes: AHashMap::new(),
             min_value: None,
             max_value: None,
             exceptions: Vec::new(),

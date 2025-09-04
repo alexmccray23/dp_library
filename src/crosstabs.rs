@@ -1,6 +1,6 @@
+use ahash::AHashMap;
 use crate::rfl::RflQuestion;
 use calamine::{open_workbook_auto, Data, Reader};
-use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 use std::fmt::Write;
@@ -300,7 +300,7 @@ impl CrossTabsLogic {
     /// Convert the logic expression to Uncle syntax.
     #[must_use]
     #[allow(clippy::option_if_let_else)]
-    pub fn to_uncle_syntax(&self, questions: &HashMap<String, RflQuestion>) -> String {
+    pub fn to_uncle_syntax(&self, questions: &AHashMap<String, RflQuestion>) -> String {
         if let Some(ref value) = self.value {
             if value == ":" {
                 self.handle_comparison(questions)
@@ -312,7 +312,7 @@ impl CrossTabsLogic {
         }
     }
 
-    fn handle_comparison(&self, questions: &HashMap<String, RflQuestion>) -> String {
+    fn handle_comparison(&self, questions: &AHashMap<String, RflQuestion>) -> String {
         if let (Some(left), Some(right)) = (&self.left, &self.right) {
             if !left.is_leaf() || !right.is_leaf() {
                 eprintln!(
@@ -363,7 +363,7 @@ impl CrossTabsLogic {
     }
 
     #[allow(clippy::option_if_let_else)]
-    fn handle_operators(&self, questions: &HashMap<String, RflQuestion>) -> String {
+    fn handle_operators(&self, questions: &AHashMap<String, RflQuestion>) -> String {
         let value = self.value.as_ref().unwrap();
 
         if let Some(ref left) = self.left {
@@ -927,7 +927,7 @@ impl BannersTables {
     /// Returns an error if banner generation fails.
     pub fn generate_banner_output(
         &self,
-        questions: &HashMap<String, RflQuestion>,
+        questions: &AHashMap<String, RflQuestion>,
         footer_type: &str,
     ) -> Result<String, CrossTabsError> {
         let mut output = String::new();

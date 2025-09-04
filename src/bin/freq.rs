@@ -1,8 +1,8 @@
-use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Result as IoResult};
 use std::path::Path;
 
+use ahash::AHashMap;
 use clap::Parser;
 use dp_library::{RflFile, RflQuestion};
 
@@ -101,7 +101,7 @@ impl WeightSpec {
 }
 
 struct FrequencyStats {
-    punch_counts: HashMap<String, f64>,
+    punch_counts: AHashMap<String, f64>,
     valid_cases: f64,
 }
 
@@ -254,13 +254,13 @@ fn determine_questions_to_process(args: &Args, rfl_file: &RflFile) -> Vec<String
 
 fn initialize_stats(
     questions_to_process: &[String],
-    questions_map: &HashMap<String, RflQuestion>,
-) -> HashMap<String, FrequencyStats> {
-    let mut all_stats: HashMap<String, FrequencyStats> = HashMap::new();
+    questions_map: &AHashMap<String, RflQuestion>,
+) -> AHashMap<String, FrequencyStats> {
+    let mut all_stats: AHashMap<String, FrequencyStats> = AHashMap::new();
 
     for question_label in questions_to_process {
         if let Some(question) = questions_map.get(question_label) {
-            let mut punch_counts = HashMap::new();
+            let mut punch_counts = AHashMap::new();
             for punch_code in question.response_codes.keys() {
                 punch_counts.insert(punch_code.clone(), 0.0);
             }
@@ -281,8 +281,8 @@ fn process_data_file(
     data_filename: &str,
     weight_spec: Option<&WeightSpec>,
     questions_to_process: &[String],
-    questions_map: &HashMap<String, RflQuestion>,
-    all_stats: &mut HashMap<String, FrequencyStats>,
+    questions_map: &AHashMap<String, RflQuestion>,
+    all_stats: &mut AHashMap<String, FrequencyStats>,
 ) -> IoResult<(usize, f64)> {
     let data_file = File::open(data_filename)?;
     let reader = BufReader::new(data_file);
