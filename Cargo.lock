@@ -216,13 +216,12 @@ dependencies = [
 
 [[package]]
 name = "dp_library"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "ahash",
  "calamine",
  "clap",
  "regex",
- "serde",
 ]
 
 [[package]]
