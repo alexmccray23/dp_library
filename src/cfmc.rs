@@ -66,8 +66,12 @@ impl CfmcLogic {
     fn trim_expression(expr: &str) -> String {
         let mut trimmed = expr.trim().to_uppercase();
 
-        // Remove outer parentheses if they wrap the entire expression
-        if trimmed.starts_with('(') && trimmed.ends_with(')') {
+        // Remove outer parentheses if they wrap the entire expression (loop to handle multiple layers)
+        loop {
+            if !trimmed.starts_with('(') || !trimmed.ends_with(')') {
+                break;
+            }
+
             let mut level = 0;
             let mut can_remove = true;
 
@@ -87,11 +91,17 @@ impl CfmcLogic {
 
             if can_remove && level == 0 {
                 trimmed = trimmed[1..trimmed.len() - 1].to_string();
+            } else {
+                break;
             }
         }
 
-        // Remove outer brackets if they wrap the entire expression
-        if trimmed.starts_with('[') && trimmed.ends_with(']') {
+        // Remove outer brackets if they wrap the entire expression (loop to handle multiple layers)
+        loop {
+            if !trimmed.starts_with('[') || !trimmed.ends_with(']') {
+                break;
+            }
+
             let mut level = 0;
             let mut can_remove = true;
 
@@ -111,6 +121,8 @@ impl CfmcLogic {
 
             if can_remove && level == 0 {
                 trimmed = trimmed[1..trimmed.len() - 1].to_string();
+            } else {
+                break;
             }
         }
 
@@ -771,14 +783,40 @@ impl CfmcLogic {
                 }
             }
             CfmcNode::Unary { operator, operand } => {
-                // Don't pass unary operators as parent context - they don't affect precedence
-                let operand_str = Self::node_to_string_with_context(operand, parent_op);
-                let op_str = match operator {
-                    CfmcOperator::Not => "NOT ",
-                    CfmcOperator::NumItems => "NUMITEMS ",
-                    _ => &format!("{operator:?} "),
+                // For unary operators, check if operand needs parentheses
+                // Wrap binary operands (except Equal) in parentheses
+                let needs_parens = matches!(
+                    operand.as_ref(),
+                    CfmcNode::Binary {
+                        operator: CfmcOperator::And
+                            | CfmcOperator::Or
+                            | CfmcOperator::Plus
+                            | CfmcOperator::Comma
+                            | CfmcOperator::Dash
+                            | CfmcOperator::Equal,
+                        ..
+                    }
+                );
+
+                let operand_str = if needs_parens {
+                    // Don't pass parent context for operands that will be wrapped in parentheses
+                    format!("({})", Self::node_to_string_with_context(operand, None))
+                } else {
+                    Self::node_to_string_with_context(operand, parent_op)
                 };
-                format!("{op_str}{operand_str}")
+
+                let op_str = match operator {
+                    CfmcOperator::Not => "NOT",
+                    CfmcOperator::NumItems => "NUMITEMS",
+                    _ => &format!("{operator:?}"),
+                };
+
+                // Add space after operator if not adding parentheses
+                if needs_parens {
+                    format!("{op_str}{operand_str}")
+                } else {
+                    format!("{op_str} {operand_str}")
+                }
             }
         }
     }
@@ -836,7 +874,7 @@ mod tests {
     fn test_parse_not_expression() {
         let logic = CfmcLogic::parse("NOT COMP(3)").unwrap();
         let output = logic.to_string();
-        assert_eq!(output, "NOT COMP(3)");
+        assert_eq!(output, "NOT(COMP(3))");
     }
 
     #[test]
@@ -1215,9 +1253,11 @@ mod tests {
     #[test]
     fn test_nested_not_expression() {
         let logic = CfmcLogic::parse("SAMPLTY(1,2) AND (NOT(PHRACE(02)) AND NOT((QSHISP(1) OR PHRACE(06))) AND NOT(QSHISP(2) AND PHRACE(01)))").unwrap();
+        println!("Parsed AST: {:#?}", logic.root);
         let output = logic.to_string();
         println!("Parsed: {output}");
-        assert_eq!(output, "SAMPLTY(1,2) AND (NOT(PHRACE(02)) AND NOT((QSHISP(1) OR PHRACE(06))) AND NOT(QSHISP(2) AND PHRACE(01)))");
+        // The parser normalizes by removing redundant outer parentheses
+        assert_eq!(output, "SAMPLTY(1,2) AND NOT(PHRACE(02)) AND NOT(QSHISP(1) OR PHRACE(06)) AND NOT(QSHISP(2) AND PHRACE(01))");
 
     }
 }
