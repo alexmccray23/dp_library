@@ -1212,4 +1212,12 @@ mod tests {
         let response_line = "D  ";
         assert!(!logic.evaluate(&questions, response_line).unwrap());
     }
+    #[test]
+    fn test_nested_not_expression() {
+        let logic = CfmcLogic::parse("SAMPLTY(1,2) AND (NOT(PHRACE(02)) AND NOT((QSHISP(1) OR PHRACE(06))) AND NOT(QSHISP(2) AND PHRACE(01)))").unwrap();
+        let output = logic.to_string();
+        println!("Parsed: {output}");
+        assert_eq!(output, "SAMPLTY(1,2) AND (NOT(PHRACE(02)) AND NOT((QSHISP(1) OR PHRACE(06))) AND NOT(QSHISP(2) AND PHRACE(01)))");
+
+    }
 }
