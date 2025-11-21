@@ -134,14 +134,27 @@ fn print_question_frequency(
     let mut total_responses = 0.0;
 
     // Sort response codes for consistent output
-    let mut sorted_punches: Vec<_> = question.response_codes.iter().collect();
-    sorted_punches.sort_by_key(|(code, _)| code.parse::<i32>().unwrap_or(999));
+    let mut sorted_punches: Vec<_> = question.responses.iter().collect();
+    sorted_punches.sort_by(|(a_code, _), (b_code, _)| {
+        let a_num = a_code.parse::<i32>();
+        let b_num = b_code.parse::<i32>();
+        match (a_num, b_num) {
+            (Ok(a), Ok(b)) => a.cmp(&b),
+            (Err(_), Err(_)) => a_code.cmp(b_code),
+            (Ok(_), Err(_)) => std::cmp::Ordering::Less,
+            (Err(_), Ok(_)) => std::cmp::Ordering::Greater,
+        }
+    });
 
-    for (punch_code, response_text) in sorted_punches {
+    for (punch_code, response_opt) in sorted_punches {
         let count = stats.punch_counts.get(punch_code).unwrap_or(&0.0);
         let percentage = calculate_percentage(*count, total_weight);
+        if let Some(response_text) = response_opt.as_deref() {
+            println!("{punch_code:>4} {response_text:<64} {count:>5.0} {percentage:>3}%");
+        } else {
+            println!("{:>4} {punch_code:<64} {count:>5.0} {percentage:>3}%", "");
+        }
 
-        println!("{punch_code:>4} {response_text:<64} {count:>5.0} {percentage:>3}%");
 
         total_responses += count;
     }
@@ -230,8 +243,11 @@ fn parse_weight_spec(weight_arg: Option<&String>) -> Option<WeightSpec> {
     })
 }
 
-fn determine_questions_to_process(args: &Args, rfl_file: &RflFile) -> Vec<String> {
-    let questions_map = rfl_file.questions();
+fn determine_questions_to_process(
+    args: &Args,
+    rfl_file: &RflFile,
+    questions_map: &mut AHashMap<String, RflQuestion>,
+) -> Vec<String> {
     let mut questions_to_process = Vec::new();
 
     if args.questions.is_empty() {
@@ -239,11 +255,31 @@ fn determine_questions_to_process(args: &Args, rfl_file: &RflFile) -> Vec<String
             questions_to_process.push(question.label.clone());
         }
     } else {
-        for question_label in &args.questions {
-            let question_label = question_label.to_uppercase();
+        for question_label_arg in &args.questions {
+            let uc_question_label = question_label_arg.to_uppercase();
+            let mut question_label = uc_question_label.clone();
             if !questions_map.contains_key(&question_label) {
-                eprintln!("Could not find question label {question_label} in RFL.");
-                std::process::exit(1);
+                let parts: Vec<&str> = uc_question_label.split(':').collect();
+                if parts.len() == 2 {
+                    let name = parts[0].to_string();
+                    question_label.clone_from(&name);
+                    let location: Vec<&str> = parts[1].split('.').collect();
+                    if location.len() == 2 {
+                        if let (Ok(start), Ok(width)) = (location[0].parse(), location[1].parse()) {
+                            let new_question = RflQuestion::new_raw(name, start, width);
+                            questions_map.insert(question_label.clone(), new_question);
+                        } else {
+                            eprintln!("Invalid location format for {question_label_arg}, expected NAME:START.WIDTH");
+                            std::process::exit(1);
+                        }
+                    } else {
+                        eprintln!("Invalid location format for {question_label_arg}, expected NAME:START.WIDTH");
+                        std::process::exit(1);
+                    }
+                } else {
+                    eprintln!("Could not find question label {question_label_arg} in RFL and format is not NAME:START.WIDTH");
+                    std::process::exit(1);
+                }
             }
             questions_to_process.push(question_label);
         }
@@ -261,7 +297,7 @@ fn initialize_stats(
     for question_label in questions_to_process {
         if let Some(question) = questions_map.get(question_label) {
             let mut punch_counts = AHashMap::new();
-            for punch_code in question.response_codes.keys() {
+            for punch_code in question.responses.keys() {
                 punch_counts.insert(punch_code.clone(), 0.0);
             }
             all_stats.insert(
@@ -281,7 +317,7 @@ fn process_data_file(
     data_filename: &str,
     weight_spec: Option<&WeightSpec>,
     questions_to_process: &[String],
-    questions_map: &AHashMap<String, RflQuestion>,
+    questions_map: &mut AHashMap<String, RflQuestion>,
     all_stats: &mut AHashMap<String, FrequencyStats>,
 ) -> IoResult<(usize, f64)> {
     let data_file = File::open(data_filename)?;
@@ -296,25 +332,30 @@ fn process_data_file(
         total_weight += weight;
 
         for question_label in questions_to_process {
-            if let Some(question) = questions_map.get(question_label) {
-                let responses = question.responses(&line);
+            if let Some(question) = questions_map.get_mut(question_label) {
+                let responses = question.extract_responses(&line);
                 let mut has_response = false;
 
                 for response in &responses {
                     let response = response.trim();
-                    if !response.is_empty()
-                        && let Some(stats) = all_stats.get_mut(question_label)
-                    {
-                        *stats
-                            .punch_counts
-                            .entry(response.to_string())
-                            .or_insert(0.0) += weight;
-                        has_response = true;
+                    if !response.is_empty() {
+                        if !question.responses.contains_key(response) {
+                            question.responses.insert(response.to_string(), None);
+                        }
+
+                        if let Some(stats) = all_stats.get_mut(question_label) {
+                            *stats
+                                .punch_counts
+                                .entry(response.to_string())
+                                .or_insert(0.0) += weight;
+                            has_response = true;
+                        }
                     }
                 }
-                if has_response && let Some(stats) = all_stats.get_mut(question_label) {
-                    stats.valid_cases += weight;
-                }
+                if has_response
+                    && let Some(stats) = all_stats.get_mut(question_label) {
+                        stats.valid_cases += weight;
+                    }
             }
         }
 
@@ -336,16 +377,16 @@ fn main() -> IoResult<()> {
     let weight_spec = parse_weight_spec(args.weight.as_ref());
 
     let rfl_file = RflFile::from_file(&layout_filename)?;
-    let questions_map = rfl_file.questions();
+    let mut questions_map = rfl_file.questions().clone();
 
-    let questions_to_process = determine_questions_to_process(&args, &rfl_file);
-    let mut all_stats = initialize_stats(&questions_to_process, questions_map);
+    let questions_to_process = determine_questions_to_process(&args, &rfl_file, &mut questions_map);
+    let mut all_stats = initialize_stats(&questions_to_process, &questions_map);
 
     let (line_count, total_weight) = process_data_file(
         &data_filename,
         weight_spec.as_ref(),
         &questions_to_process,
-        questions_map,
+        &mut questions_map,
         &mut all_stats,
     )?;
 

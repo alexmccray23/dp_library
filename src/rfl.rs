@@ -33,7 +33,7 @@ impl QuestionType {
 pub struct RflQuestion {
     pub label: String,
     pub text_lines: Vec<String>,
-    pub response_codes: AHashMap<String, String>,
+    pub responses: AHashMap<String, Option<String>>,
     pub exceptions: Vec<String>,
     pub start_col: usize,
     pub width: usize,
@@ -45,6 +45,22 @@ pub struct RflQuestion {
 
 impl RflQuestion {
     #[must_use]
+    pub fn new_raw(label: String, start_col: usize, width: usize) -> Self {
+        Self {
+            label: label.clone(),
+            start_col,
+            width,
+            question_type: QuestionType::Fld,
+            max_responses: 1,
+            text_lines: vec![label],
+            responses: AHashMap::new(),
+            min_value: None,
+            max_value: None,
+            exceptions: Vec::new(),
+        }
+    }
+
+    #[must_use]
     pub fn new_case_id(start_col: usize, width: usize) -> Self {
         Self {
             label: "CASEID".to_string(),
@@ -53,7 +69,7 @@ impl RflQuestion {
             question_type: QuestionType::Num,
             max_responses: 1,
             text_lines: vec!["CASE ID".to_string()],
-            response_codes: AHashMap::new(),
+            responses: AHashMap::new(),
             min_value: None,
             max_value: None,
             exceptions: Vec::new(),
@@ -73,7 +89,7 @@ impl RflQuestion {
             question_type: QuestionType::Fld,
             max_responses: 1,
             text_lines: Vec::new(),
-            response_codes: AHashMap::new(),
+            responses: AHashMap::new(),
             min_value: None,
             max_value: None,
             exceptions: Vec::new(),
@@ -140,7 +156,7 @@ impl RflQuestion {
             if let Some(space_pos) = trimmed.find(' ') {
                 let code = trimmed[..space_pos].trim().to_string();
                 let text = trimmed[space_pos..].trim().to_string();
-                self.response_codes.insert(code, text);
+                self.responses.insert(code, Some(text));
             }
         }
     }
@@ -200,7 +216,7 @@ impl RflQuestion {
     }
 
     #[must_use]
-    pub fn responses(&self, response_line: &str) -> Vec<String> {
+    pub fn extract_responses(&self, response_line: &str) -> Vec<String> {
         let mut responses = Vec::new();
         for i in 0..self.max_responses {
             let start_pos = (self.start_col - 1) + (i * self.width);
@@ -364,8 +380,8 @@ mod tests {
         assert_eq!(question.question_type, QuestionType::Fld);
         assert_eq!(question.text_lines.len(), 1);
         assert_eq!(question.text_lines[0], "COMP");
-        assert_eq!(question.response_codes.len(), 2);
-        assert_eq!(question.response_codes.get("1").unwrap(), "COMPLETE");
+        assert_eq!(question.responses.len(), 2);
+        assert_eq!(question.responses.get("1").unwrap(), &Some("COMPLETE".to_string()));
     }
 
     #[test]
@@ -412,14 +428,14 @@ mod tests {
             question_type: QuestionType::Fld,
             max_responses: 3,
             text_lines: Vec::new(),
-            response_codes: AHashMap::new(),
+            responses: AHashMap::new(),
             min_value: None,
             max_value: None,
             exceptions: Vec::new(),
         };
 
         let response_line = "123456789012345678901234567890";
-        let responses = question.responses(response_line);
+        let responses = question.extract_responses(response_line);
 
         assert_eq!(responses.len(), 3);
         assert_eq!(responses[0], "56"); // positions 5-6 (0-indexed: 4-5)
@@ -443,7 +459,7 @@ mod tests {
                 "ENTER NUMBER should be filtered".to_string(),
                 "Q17. Another question".to_string(),
             ],
-            response_codes: AHashMap::new(),
+            responses: AHashMap::new(),
             min_value: None,
             max_value: None,
             exceptions: Vec::new(),
@@ -472,7 +488,7 @@ mod tests {
                 // Test a field question
                 if let Some(comp) = rfl_file.get_question("COMP") {
                     assert_eq!(comp.question_type, QuestionType::Fld);
-                    assert!(comp.response_codes.contains_key("1"));
+                    assert!(comp.responses.contains_key("1"));
                 }
 
                 // Test a numeric question

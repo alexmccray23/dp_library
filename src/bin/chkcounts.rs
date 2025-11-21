@@ -195,7 +195,7 @@ fn main() -> IoResult<()> {
 
                 // Count responses if question exists in RFL
                 if let Some(question) = questions.get(&counter.label) {
-                    let responses = question.responses(&line);
+                    let responses = question.extract_responses(&line);
                     let has_response = responses.iter().any(|r| !r.trim().is_empty());
 
                     if has_response {
@@ -221,7 +221,7 @@ fn main() -> IoResult<()> {
             } else {
                 // Count responses if question exists in RFL even if the logic is blank/not parsable
                 if let Some(question) = questions.get(&counter.label) {
-                    let responses = question.responses(&line);
+                    let responses = question.extract_responses(&line);
                     let has_response = responses.iter().any(|r| !r.trim().is_empty());
 
                     if has_response {

@@ -408,7 +408,7 @@ impl CfmcLogic {
                 questions.get(label).map_or_else(
                     || Err(format!("Question {label} not found in RFL")),
                     |question| {
-                        let responses = question.responses(response_line);
+                        let responses = question.extract_responses(response_line);
                         // Question reference evaluates to true if any response is non-empty
                         Ok(responses.iter().any(|r| !r.trim().is_empty()))
                     },
@@ -487,7 +487,7 @@ impl CfmcLogic {
         let left_responses = match left {
             CfmcNode::QuestionLabel(label) => {
                 if let Some(question) = questions.get(label) {
-                    question.responses(response_line)
+                    question.extract_responses(response_line)
                 } else {
                     return Err(format!("Question {label} not found in RFL"));
                 }
@@ -526,7 +526,7 @@ impl CfmcLogic {
         let left_responses = match left {
             CfmcNode::QuestionLabel(label) => {
                 if let Some(question) = questions.get(label) {
-                    question.responses(response_line)
+                    question.extract_responses(response_line)
                 } else {
                     return Err(format!("Question {label} not found in RFL"));
                 }
@@ -562,7 +562,7 @@ impl CfmcLogic {
         let left_responses = match left {
             CfmcNode::QuestionLabel(label) => {
                 if let Some(question) = questions.get(label) {
-                    question.responses(response_line)
+                    question.extract_responses(response_line)
                 } else {
                     return Err(format!("Question {label} not found in RFL"));
                 }
@@ -584,7 +584,7 @@ impl CfmcLogic {
         let left_responses = match left {
             CfmcNode::QuestionLabel(label) => {
                 if let Some(question) = questions.get(label) {
-                    question.responses(response_line)
+                    question.extract_responses(response_line)
                 } else {
                     return Err(format!("Question {label} not found in RFL"));
                 }
@@ -633,7 +633,7 @@ impl CfmcLogic {
             CfmcNode::Literal(value) => Ok(vec![value.clone()]),
             CfmcNode::QuestionLabel(label) => questions.get(label).map_or_else(
                 || Err(format!("Question {label} not found in RFL")),
-                |question| Ok(question.responses(response_line)),
+                |question| Ok(question.extract_responses(response_line)),
             ),
             CfmcNode::Binary {
                 operator: CfmcOperator::Comma,
