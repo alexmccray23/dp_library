@@ -1260,4 +1260,14 @@ mod tests {
         assert_eq!(output, "SAMPLTY(1,2) AND NOT(PHRACE(02)) AND NOT(QSHISP(1) OR PHRACE(06)) AND NOT(QSHISP(2) AND PHRACE(01))");
 
     }
+    #[test]
+    fn test_long_string_expression() {
+        let logic = CfmcLogic::parse(r#"(SAMP_PROV_TYPE(1) AND (([PRIME$]="X") OR ([SELECTCARE$]="X")) AND (QR1_BDAYS>15)) OR (SAMP_PROV_TYPE(1) AND (QR1_DAYS>28) AND (([PRIME$]<>"X") OR ([SELECTCARE$]<>"X"))) OR (SAMP_PROV_TYPE(2,4) AND  (QR1_DAYS>28)) OR (SAMP_PROV_TYPE(3) AND ([ENHANCEDCARE_HARP$]="X") AND (QR1_BDAYS>3)) OR (SAMP_PROV_TYPE(3) AND ([ENHANCEDCARE_HARP$]<>"X") AND (QR1_BDAYS>30))"#).unwrap();
+        println!("Parsed AST: {:#?}", logic.root);
+        let output = logic.to_string();
+        println!("Parsed: {output}");
+        // The parser normalizes by removing redundant outer parentheses
+        assert_eq!(output, r#"(SAMP_PROV_TYPE(1) AND (([PRIME$]="X") OR ([SELECTCARE$]="X")) AND (QR1_BDAYS>15)) OR (SAMP_PROV_TYPE(1) AND (QR1_DAYS>28) AND (([PRIME$]<>"X") OR ([SELECTCARE$]<>"X"))) OR (SAMP_PROV_TYPE(2,4) AND  (QR1_DAYS>28)) OR (SAMP_PROV_TYPE(3) AND ([ENHANCEDCARE_HARP$]="X") AND (QR1_BDAYS>3)) OR (SAMP_PROV_TYPE(3) AND ([ENHANCEDCARE_HARP$]<>"X") AND (QR1_BDAYS>30))"#);
+
+    }
 }
