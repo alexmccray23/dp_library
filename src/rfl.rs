@@ -7,7 +7,7 @@ use std::{
 };
 
 static QUESTION_PREFIX_RE: LazyLock<Regex> =
-    LazyLock::new(|| regex::Regex::new(r"^[A-Za-z]*\d+[A-Za-z]*\.?\s*").unwrap());
+    LazyLock::new(|| regex::Regex::new(r"^[A-Za-z]*\S*\.\s*").unwrap());
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum QuestionType {
