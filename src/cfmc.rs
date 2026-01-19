@@ -358,9 +358,7 @@ impl CfmcLogic {
         }
     }
 
-    fn parse_leaf(text: &str) -> CfmcNode {
-        let trimmed = text.trim();
-
+    fn parse_leaf(trimmed: &str) -> CfmcNode {
         // If it has quotes, treat it as a literal regardless of content
         if trimmed.starts_with('"') && trimmed.ends_with('"') {
             let cleaned = &trimmed[1..trimmed.len() - 1];
