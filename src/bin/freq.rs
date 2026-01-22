@@ -15,14 +15,14 @@ struct Args {
     #[arg(
         short = 'l',
         long = "layoutfile",
-        help = "The layout file to use, ie p0001.rfl"
+        help = "The layout file to use, e.g., p0001.rfl"
     )]
     layout_file: Option<String>,
 
     #[arg(
         short = 'd',
         long = "datafile",
-        help = "The data file to use, eg p0001.fin"
+        help = "The data file to use, e.g., p0001.fin"
     )]
     data_file: Option<String>,
 
