@@ -22,7 +22,7 @@ struct Args {
     #[arg(
         short = 'd',
         long = "datafile",
-        help = "The data file to use, ie p0001.fin"
+        help = "The data file to use, eg p0001.fin"
     )]
     data_file: Option<String>,
 
@@ -203,6 +203,7 @@ fn determine_files(args: &Args) -> (String, String) {
         || {
             find_file_with_extension(".", &[".fin"])
                 .or_else(|| find_file_with_extension(".", &[".rft"]))
+                .or_else(|| find_file_with_extension(".", &[".c"]))
                 .unwrap_or_else(|| {
                     eprintln!("Could not find fin or rft file in the current directory");
                     std::process::exit(1);
