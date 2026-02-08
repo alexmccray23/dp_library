@@ -201,9 +201,9 @@ fn determine_files(args: &Args) -> (String, String) {
 
     let data_filename = args.data_file.clone().map_or_else(
         || {
-            find_file_with_extension(".", &[".fin"])
+            find_file_with_extension(".", &[".c"])
+                .or_else(|| find_file_with_extension(".", &[".fin"]))
                 .or_else(|| find_file_with_extension(".", &[".rft"]))
-                .or_else(|| find_file_with_extension(".", &[".c"]))
                 .unwrap_or_else(|| {
                     eprintln!("Could not find fin or rft file in the current directory");
                     std::process::exit(1);
