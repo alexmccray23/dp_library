@@ -27,8 +27,8 @@ impl Error for CrossTabsError {}
 #[derive(Debug, Clone)]
 pub struct CrossTabsLogic {
     pub value: Option<String>,
-    pub left: Option<Box<CrossTabsLogic>>,
-    pub right: Option<Box<CrossTabsLogic>>,
+    pub left: Option<Box<Self>>,
+    pub right: Option<Box<Self>>,
 }
 
 impl CrossTabsLogic {

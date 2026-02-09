@@ -4,7 +4,7 @@ use std::path::Path;
 
 use ahash::AHashMap;
 use clap::Parser;
-use dp_library::{RflFile, RflQuestion};
+use dp_library::{CfmcLogic, RflFile, RflQuestion};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -26,8 +26,12 @@ struct Args {
     )]
     data_file: Option<String>,
 
-    #[arg(short = 'v', long = "verbose", help = "Verbose output")]
-    _verbose: bool,
+    #[arg(
+        short = 'f',
+        long = "filter",
+        help = "Filter cases, e.g., -f \"QD7B(02) AND AGEGROUP(1-3)\""
+    )]
+    filter: Option<String>,
 
     #[arg(
         short = 'w',
@@ -155,7 +159,6 @@ fn print_question_frequency(
             println!("{:>4} {punch_code:<64} {count:>5.0} {percentage:>3}%", "");
         }
 
-
         total_responses += count;
     }
 
@@ -189,28 +192,22 @@ fn print_question_frequency(
 }
 
 fn determine_files(args: &Args) -> (String, String) {
-    let layout_filename = args.layout_file.clone().map_or_else(
-        || {
-            find_file_with_extension(".", &[".rfl"]).unwrap_or_else(|| {
-                eprintln!("Could not find rfl file in the current directory");
+    let layout_filename = args.layout_file.clone().unwrap_or_else(|| {
+        find_file_with_extension(".", &[".rfl"]).unwrap_or_else(|| {
+            eprintln!("Could not find rfl file in the current directory");
+            std::process::exit(1);
+        })
+    });
+
+    let data_filename = args.data_file.clone().unwrap_or_else(|| {
+        find_file_with_extension(".", &[".c"])
+            .or_else(|| find_file_with_extension(".", &[".fin"]))
+            .or_else(|| find_file_with_extension(".", &[".rft"]))
+            .unwrap_or_else(|| {
+                eprintln!("Could not find fin or rft file in the current directory");
                 std::process::exit(1);
             })
-        },
-        |file| file,
-    );
-
-    let data_filename = args.data_file.clone().map_or_else(
-        || {
-            find_file_with_extension(".", &[".c"])
-                .or_else(|| find_file_with_extension(".", &[".fin"]))
-                .or_else(|| find_file_with_extension(".", &[".rft"]))
-                .unwrap_or_else(|| {
-                    eprintln!("Could not find fin or rft file in the current directory");
-                    std::process::exit(1);
-                })
-        },
-        |file| file,
-    );
+    });
 
     if !Path::new(&layout_filename).exists() {
         eprintln!("{layout_filename} not found in the current directory");
@@ -270,15 +267,21 @@ fn determine_questions_to_process(
                             let new_question = RflQuestion::new_raw(name, start, width);
                             questions_map.insert(question_label.clone(), new_question);
                         } else {
-                            eprintln!("Invalid location format for {question_label_arg}, expected NAME:START.WIDTH");
+                            eprintln!(
+                                "Invalid location format for {question_label_arg}, expected NAME:START.WIDTH"
+                            );
                             std::process::exit(1);
                         }
                     } else {
-                        eprintln!("Invalid location format for {question_label_arg}, expected NAME:START.WIDTH");
+                        eprintln!(
+                            "Invalid location format for {question_label_arg}, expected NAME:START.WIDTH"
+                        );
                         std::process::exit(1);
                     }
                 } else {
-                    eprintln!("Could not find question label {question_label_arg} in RFL and format is not NAME:START.WIDTH");
+                    eprintln!(
+                        "Could not find question label {question_label_arg} in RFL and format is not NAME:START.WIDTH"
+                    );
                     std::process::exit(1);
                 }
             }
@@ -314,12 +317,26 @@ fn initialize_stats(
     all_stats
 }
 
+fn logic_filter(
+    response_line: &str,
+    logic_str: &str,
+    questions: &AHashMap<String, RflQuestion>,
+) -> bool {
+    if let Ok(logic) = CfmcLogic::parse(logic_str)
+        && let Ok(matched) = logic.evaluate(questions, response_line)
+    {
+        return matched;
+    }
+    true
+}
+
 fn process_data_file(
     data_filename: &str,
     weight_spec: Option<&WeightSpec>,
     questions_to_process: &[String],
     questions_map: &mut AHashMap<String, RflQuestion>,
     all_stats: &mut AHashMap<String, FrequencyStats>,
+    args: &Args,
 ) -> IoResult<(usize, f64)> {
     let data_file = File::open(data_filename)?;
     let reader = BufReader::new(data_file);
@@ -329,41 +346,46 @@ fn process_data_file(
     for line in reader.lines() {
         let line = line?;
 
-        let weight = weight_spec.map_or(1.0, |spec| spec.extract_weight(&line));
-        total_weight += weight;
+        let filter = args.filter.clone().is_none_or(|logic_str| {
+            logic_filter(&line, &logic_str, questions_map)
+        });
 
-        for question_label in questions_to_process {
-            if let Some(question) = questions_map.get_mut(question_label) {
-                let responses = question.extract_responses(&line);
-                let mut has_response = false;
+        if filter {
+            let weight = weight_spec.map_or(1.0, |spec| spec.extract_weight(&line));
+            total_weight += weight;
 
-                for response in &responses {
-                    let response = response.trim();
-                    if !response.is_empty() {
-                        if !question.responses.contains_key(response) {
-                            question.responses.insert(response.to_string(), None);
-                        }
+            for question_label in questions_to_process {
+                if let Some(question) = questions_map.get_mut(question_label) {
+                    let responses = question.extract_responses(&line);
+                    let mut has_response = false;
 
-                        if let Some(stats) = all_stats.get_mut(question_label) {
-                            *stats
-                                .punch_counts
-                                .entry(response.to_string())
-                                .or_insert(0.0) += weight;
-                            has_response = true;
+                    for response in &responses {
+                        let response = response.trim();
+                        if !response.is_empty() {
+                            if !question.responses.contains_key(response) {
+                                question.responses.insert(response.to_string(), None);
+                            }
+
+                            if let Some(stats) = all_stats.get_mut(question_label) {
+                                *stats
+                                    .punch_counts
+                                    .entry(response.to_string())
+                                    .or_insert(0.0) += weight;
+                                has_response = true;
+                            }
                         }
                     }
-                }
-                if has_response
-                    && let Some(stats) = all_stats.get_mut(question_label) {
+                    if has_response && let Some(stats) = all_stats.get_mut(question_label) {
                         stats.valid_cases += weight;
                     }
+                }
             }
-        }
 
-        line_count += 1;
-        if line_count % 100 == 0 {
-            print!(".");
-            std::io::Write::flush(&mut std::io::stdout()).unwrap();
+            line_count += 1;
+            if line_count % 100 == 0 {
+                print!(".");
+                std::io::Write::flush(&mut std::io::stdout()).unwrap();
+            }
         }
     }
     println!();
@@ -389,6 +411,7 @@ fn main() -> IoResult<()> {
         &questions_to_process,
         &mut questions_map,
         &mut all_stats,
+        &args,
     )?;
 
     for question_label in &questions_to_process {

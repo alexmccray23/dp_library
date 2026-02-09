@@ -37,12 +37,12 @@ pub enum CfmcNode {
     // Internal nodes
     Binary {
         operator: CfmcOperator,
-        left: Box<CfmcNode>,
-        right: Box<CfmcNode>,
+        left: Box<Self>,
+        right: Box<Self>,
     },
     Unary {
         operator: CfmcOperator,
-        operand: Box<CfmcNode>,
+        operand: Box<Self>,
     },
 }
 
