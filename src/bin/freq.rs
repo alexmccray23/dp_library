@@ -9,36 +9,36 @@ use dp_library::{CfmcLogic, RflFile, RflQuestion};
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    /// Question labels to generate frequencies for
-    questions: Vec<String>,
+    /// Data fields to generate frequencies for
+    data_fields: Vec<String>,
 
     #[arg(
         short = 'l',
         long = "layoutfile",
-        help = "The layout file to use, e.g., p0001.rfl"
+        help = "The layout file to use, e.g., p0042.rfl"
     )]
     layout_file: Option<String>,
 
     #[arg(
         short = 'd',
         long = "datafile",
-        help = "The data file to use, e.g., p0001.fin"
+        help = "The data file to use, e.g., P0042.FIN"
     )]
     data_file: Option<String>,
 
     #[arg(
         short = 'f',
         long = "filter",
-        help = "Filter cases, e.g., -f \"QD7B(02) AND AGEGROUP(1-3)\""
+        help = "Filter cases, e.g., \"QD7B(02) AND AGEGROUP(1-3)\""
     )]
-    filter: Option<String>,
+    logic: Option<String>,
 
     #[arg(
         short = 'w',
         long = "weight",
-        help = "Weight specification: start_col.width (e.g., 1000.7 for column 1000, width 7)"
+        help = "Weight data, e.g., 1000.7 for column 1000, width 7"
     )]
-    weight: Option<String>,
+    weight_loc: Option<String>,
 }
 
 fn find_file_with_extension(dir: &str, extensions: &[&str]) -> Option<String> {
@@ -90,7 +90,7 @@ impl WeightSpec {
     }
 
     fn extract_weight(&self, line: &str) -> f64 {
-        let start_idx = self.start_col - 1; // Convert to 0-indexed
+        let start_idx = self.start_col - 1;
         let end_idx = start_idx + self.width;
 
         if start_idx >= line.len() {
@@ -248,12 +248,12 @@ fn determine_questions_to_process(
 ) -> Vec<String> {
     let mut questions_to_process = Vec::new();
 
-    if args.questions.is_empty() {
+    if args.data_fields.is_empty() {
         for question in rfl_file.questions_array() {
             questions_to_process.push(question.label.clone());
         }
     } else {
-        for question_label_arg in &args.questions {
+        for question_label_arg in &args.data_fields {
             let uc_question_label = question_label_arg.to_uppercase();
             let mut question_label = uc_question_label.clone();
             if !questions_map.contains_key(&question_label) {
@@ -349,12 +349,11 @@ fn process_data_file(
         let line = line?;
         total_lines += 1;
 
-        // Apply filter if specified
         if let Some(filter_logic) = filter {
             match filter_logic.evaluate(questions_map, &line) {
                 Ok(matched) => {
                     if !matched {
-                        continue; // Skip lines that don't match the filter
+                        continue;
                     }
                 }
                 Err(e) => {
@@ -409,17 +408,17 @@ fn main() -> IoResult<()> {
     let args = Args::parse();
 
     let (layout_filename, data_filename) = determine_files(&args);
-    let weight_spec = parse_weight_spec(args.weight.as_ref());
+    let weight_spec = parse_weight_spec(args.weight_loc.as_ref());
 
     let rfl_file = RflFile::from_file(&layout_filename)?;
     let mut questions_map = rfl_file.questions().clone();
 
     let questions_to_process = determine_questions_to_process(&args, &rfl_file, &mut questions_map);
 
-    // Parse and validate filter before processing data
-    let filter = args.filter.as_ref().map(|filter_str| {
-        parse_and_validate_filter(filter_str)
-    });
+    let filter = args
+        .logic
+        .as_ref()
+        .map(|filter_str| parse_and_validate_filter(filter_str));
 
     let mut all_stats = initialize_stats(&questions_to_process, &questions_map);
 
@@ -440,8 +439,8 @@ fn main() -> IoResult<()> {
         let excluded_pct = calculate_percentage(lines_excluded as f64, total_lines as f64);
 
         println!("Total lines:           {total_lines:>6}");
-        println!("Lines matching filter: {lines_processed:>6} ({included_pct:>3}%)");
-        println!("Lines excluded:        {lines_excluded:>6} ({excluded_pct:>3}%)");
+        println!("Lines matching filter: {lines_processed:>6} {included_pct:>3}%");
+        println!("Lines excluded:        {lines_excluded:>6} {excluded_pct:>3}%");
         println!();
     }
 
