@@ -44,7 +44,14 @@ struct Args {
 fn find_file_with_extension(dir: &str, extensions: &[&str]) -> Option<String> {
     let path = Path::new(dir);
     if let Ok(entries) = std::fs::read_dir(path) {
-        for entry in entries.flatten() {
+        let mut sorted_entries: Vec<_> = entries.flatten().collect();
+        sorted_entries.sort_unstable_by(|a, b| {
+            b.metadata()
+                .unwrap()
+                .len()
+                .cmp(&a.metadata().unwrap().len())
+        });
+        for entry in sorted_entries {
             if let Some(file_name) = entry.file_name().to_str() {
                 for ext in extensions {
                     if file_name.to_lowercase().ends_with(ext) {
