@@ -317,17 +317,18 @@ fn initialize_stats(
     all_stats
 }
 
-fn logic_filter(
-    response_line: &str,
-    logic_str: &str,
-    questions: &AHashMap<String, RflQuestion>,
-) -> bool {
-    if let Ok(logic) = CfmcLogic::parse(logic_str)
-        && let Ok(matched) = logic.evaluate(questions, response_line)
-    {
-        return matched;
+fn parse_and_validate_filter(filter_str: &str) -> CfmcLogic {
+    match CfmcLogic::parse(filter_str) {
+        Ok(logic) => {
+            println!("Using filter: {filter_str}");
+            logic
+        }
+        Err(e) => {
+            eprintln!("Error parsing filter expression: {e}");
+            eprintln!("Filter: {filter_str}");
+            std::process::exit(1);
+        }
     }
-    true
 }
 
 fn process_data_file(
@@ -336,61 +337,72 @@ fn process_data_file(
     questions_to_process: &[String],
     questions_map: &mut AHashMap<String, RflQuestion>,
     all_stats: &mut AHashMap<String, FrequencyStats>,
-    args: &Args,
-) -> IoResult<(usize, f64)> {
+    filter: Option<&CfmcLogic>,
+) -> IoResult<(usize, usize, f64)> {
     let data_file = File::open(data_filename)?;
     let reader = BufReader::new(data_file);
-    let mut line_count = 0;
+    let mut total_lines = 0;
+    let mut lines_processed = 0;
     let mut total_weight = 0.0;
 
     for line in reader.lines() {
         let line = line?;
+        total_lines += 1;
 
-        let filter = args.filter.clone().is_none_or(|logic_str| {
-            logic_filter(&line, &logic_str, questions_map)
-        });
-
-        if filter {
-            let weight = weight_spec.map_or(1.0, |spec| spec.extract_weight(&line));
-            total_weight += weight;
-
-            for question_label in questions_to_process {
-                if let Some(question) = questions_map.get_mut(question_label) {
-                    let responses = question.extract_responses(&line);
-                    let mut has_response = false;
-
-                    for response in &responses {
-                        let response = response.trim();
-                        if !response.is_empty() {
-                            if !question.responses.contains_key(response) {
-                                question.responses.insert(response.to_string(), None);
-                            }
-
-                            if let Some(stats) = all_stats.get_mut(question_label) {
-                                *stats
-                                    .punch_counts
-                                    .entry(response.to_string())
-                                    .or_insert(0.0) += weight;
-                                has_response = true;
-                            }
-                        }
-                    }
-                    if has_response && let Some(stats) = all_stats.get_mut(question_label) {
-                        stats.valid_cases += weight;
+        // Apply filter if specified
+        if let Some(filter_logic) = filter {
+            match filter_logic.evaluate(questions_map, &line) {
+                Ok(matched) => {
+                    if !matched {
+                        continue; // Skip lines that don't match the filter
                     }
                 }
+                Err(e) => {
+                    eprintln!("Error evaluating filter on line {total_lines}: {e}");
+                    std::process::exit(1);
+                }
             }
+        }
 
-            line_count += 1;
-            if line_count % 100 == 0 {
-                print!(".");
-                std::io::Write::flush(&mut std::io::stdout()).unwrap();
+        let weight = weight_spec.map_or(1.0, |spec| spec.extract_weight(&line));
+        total_weight += weight;
+
+        for question_label in questions_to_process {
+            if let Some(question) = questions_map.get_mut(question_label) {
+                let responses = question.extract_responses(&line);
+                let mut has_response = false;
+
+                for response in &responses {
+                    let response = response.trim();
+                    if !response.is_empty() {
+                        if !question.responses.contains_key(response) {
+                            question.responses.insert(response.to_string(), None);
+                        }
+
+                        if let Some(stats) = all_stats.get_mut(question_label) {
+                            *stats
+                                .punch_counts
+                                .entry(response.to_string())
+                                .or_insert(0.0) += weight;
+                            has_response = true;
+                        }
+                    }
+                }
+                if has_response && let Some(stats) = all_stats.get_mut(question_label) {
+                    stats.valid_cases += weight;
+                }
             }
+        }
+
+        lines_processed += 1;
+        if lines_processed % 100 == 0 {
+            print!(".");
+            std::io::Write::flush(&mut std::io::stdout()).unwrap();
         }
     }
     println!();
 
-    Ok((line_count, total_weight))
+    Ok((total_lines, lines_processed, total_weight))
 }
 
 fn main() -> IoResult<()> {
@@ -403,22 +415,41 @@ fn main() -> IoResult<()> {
     let mut questions_map = rfl_file.questions().clone();
 
     let questions_to_process = determine_questions_to_process(&args, &rfl_file, &mut questions_map);
+
+    // Parse and validate filter before processing data
+    let filter = args.filter.as_ref().map(|filter_str| {
+        parse_and_validate_filter(filter_str)
+    });
+
     let mut all_stats = initialize_stats(&questions_to_process, &questions_map);
 
-    let (line_count, total_weight) = process_data_file(
+    let (total_lines, lines_processed, total_weight) = process_data_file(
         &data_filename,
         weight_spec.as_ref(),
         &questions_to_process,
         &mut questions_map,
         &mut all_stats,
-        &args,
+        filter.as_ref(),
     )?;
+
+    // Report filtering statistics if a filter was used
+    #[allow(clippy::cast_precision_loss)]
+    if filter.is_some() {
+        let lines_excluded = total_lines - lines_processed;
+        let included_pct = calculate_percentage(lines_processed as f64, total_lines as f64);
+        let excluded_pct = calculate_percentage(lines_excluded as f64, total_lines as f64);
+
+        println!("Total lines:           {total_lines:>6}");
+        println!("Lines matching filter: {lines_processed:>6} ({included_pct:>3}%)");
+        println!("Lines excluded:        {lines_excluded:>6} ({excluded_pct:>3}%)");
+        println!();
+    }
 
     for question_label in &questions_to_process {
         if let Some(question) = questions_map.get(question_label)
             && let Some(stats) = all_stats.get(question_label)
         {
-            print_question_frequency(question, stats, line_count, total_weight);
+            print_question_frequency(question, stats, lines_processed, total_weight);
         }
     }
 
