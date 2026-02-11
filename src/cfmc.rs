@@ -392,11 +392,10 @@ impl CfmcLogic {
         questions: &AHashMap<String, RflQuestion>,
         response_line: &str,
     ) -> Result<bool, String> {
-        self.evaluate_node(&self.root, questions, response_line)
+        Self::evaluate_node(&self.root, questions, response_line)
     }
 
     fn evaluate_node(
-        &self,
         node: &CfmcNode,
         questions: &AHashMap<String, RflQuestion>,
         response_line: &str,
@@ -424,23 +423,23 @@ impl CfmcLogic {
                 right,
             } => match operator {
                 CfmcOperator::And => {
-                    let left_val = self.evaluate_node(left, questions, response_line)?;
-                    let right_val = self.evaluate_node(right, questions, response_line)?;
+                    let left_val = Self::evaluate_node(left, questions, response_line)?;
+                    let right_val = Self::evaluate_node(right, questions, response_line)?;
                     Ok(left_val && right_val)
                 }
 
                 CfmcOperator::Or => {
-                    let left_val = self.evaluate_node(left, questions, response_line)?;
-                    let right_val = self.evaluate_node(right, questions, response_line)?;
+                    let left_val = Self::evaluate_node(left, questions, response_line)?;
+                    let right_val = Self::evaluate_node(right, questions, response_line)?;
                     Ok(left_val || right_val)
                 }
 
                 CfmcOperator::Equal => {
-                    self.evaluate_equality(left, right, questions, response_line)
+                    Self::evaluate_equality(left, right, questions, response_line)
                 }
 
                 CfmcOperator::NotEqual => {
-                    let val = self.evaluate_equality(left, right, questions, response_line)?;
+                    let val = Self::evaluate_equality(left, right, questions, response_line)?;
                     Ok(!val)
                 }
 
@@ -456,7 +455,7 @@ impl CfmcLogic {
                 | CfmcOperator::LessEqual
                 | CfmcOperator::Greater
                 | CfmcOperator::GreaterEqual => {
-                    self.evaluate_inequality(left, right, questions, response_line, operator)
+                    Self::evaluate_inequality(left, right, questions, response_line, operator)
                 }
 
                 _ => Err(format!("Binary operator {operator:?} not yet implemented")),
@@ -464,7 +463,7 @@ impl CfmcLogic {
 
             CfmcNode::Unary { operator, operand } => match operator {
                 CfmcOperator::Not => {
-                    let val = self.evaluate_node(operand, questions, response_line)?;
+                    let val = Self::evaluate_node(operand, questions, response_line)?;
                     Ok(!val)
                 }
 
@@ -480,7 +479,6 @@ impl CfmcLogic {
     }
 
     fn evaluate_equality(
-        &self,
         left: &CfmcNode,
         right: &CfmcNode,
         questions: &AHashMap<String, RflQuestion>,
@@ -511,14 +509,13 @@ impl CfmcLogic {
         };
 
         // Get expected value(s) from right side
-        let expected_values = self.get_value_list(right, questions, response_line)?;
+        let expected_values = Self::get_value_list(right, questions, response_line)?;
 
         // Check if any response matches any expected value
         Ok(Self::responses_intersect(&left_responses, &expected_values))
     }
 
     fn evaluate_inequality(
-        &self,
         left: &CfmcNode,
         right: &CfmcNode,
         questions: &AHashMap<String, RflQuestion>,
@@ -546,7 +543,7 @@ impl CfmcLogic {
         };
 
         // Get expected value(s) from right side
-        let expected_values = self.get_value_list(right, questions, response_line)?;
+        let expected_values = Self::get_value_list(right, questions, response_line)?;
 
         // Check if any response matches any expected value
         Ok(Self::responses_comparison(
@@ -627,7 +624,6 @@ impl CfmcLogic {
 
     #[allow(clippy::only_used_in_recursion)]
     fn get_value_list(
-        &self,
         node: &CfmcNode,
         questions: &AHashMap<String, RflQuestion>,
         response_line: &str,
@@ -643,8 +639,8 @@ impl CfmcLogic {
                 left,
                 right,
             } => {
-                let mut left_values = self.get_value_list(left, questions, response_line)?;
-                let mut right_values = self.get_value_list(right, questions, response_line)?;
+                let mut left_values = Self::get_value_list(left, questions, response_line)?;
+                let mut right_values = Self::get_value_list(right, questions, response_line)?;
                 left_values.append(&mut right_values);
                 Ok(left_values)
             }
@@ -653,8 +649,8 @@ impl CfmcLogic {
                 left,
                 right,
             } => {
-                let left_values = self.get_value_list(left, questions, response_line)?;
-                let right_values = self.get_value_list(right, questions, response_line)?;
+                let left_values = Self::get_value_list(left, questions, response_line)?;
+                let right_values = Self::get_value_list(right, questions, response_line)?;
                 if left_values.len() == 1 && right_values.len() == 1 {
                     Ok(vec![format!("{}-{}", left_values[0], right_values[0])])
                 } else {
