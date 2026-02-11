@@ -132,7 +132,7 @@ fn calculate_percentage(count: f64, total: f64) -> u32 {
 fn print_question_frequency(
     question: &RflQuestion,
     stats: &FrequencyStats,
-    _total_lines: usize,
+    _total_lines: f64,
     total_weight: f64,
 ) {
     println!("{}:", question.label.to_uppercase());
@@ -195,6 +195,17 @@ fn print_question_frequency(
         "     {:<64} {:>5.0} {:>3}%",
         "TOTAL CASES", total_weight, 100
     );
+    println!();
+}
+
+fn print_filter_frequencies(total_lines: f64, lines_processed: f64) {
+    let lines_excluded = total_lines - lines_processed;
+    let included_pct = calculate_percentage(lines_processed, total_lines);
+    let excluded_pct = calculate_percentage(lines_excluded, total_lines);
+
+    println!("Total lines:           {total_lines:>6}");
+    println!("Lines matching filter: {lines_processed:>6} {included_pct:>3}%");
+    println!("Lines excluded:        {lines_excluded:>6} {excluded_pct:>3}%");
     println!();
 }
 
@@ -345,16 +356,17 @@ fn process_data_file(
     questions_map: &mut AHashMap<String, RflQuestion>,
     all_stats: &mut AHashMap<String, FrequencyStats>,
     filter: Option<&CfmcLogic>,
-) -> IoResult<(usize, usize, f64)> {
+) -> IoResult<(f64, f64, f64)> {
     let data_file = File::open(data_filename)?;
     let reader = BufReader::new(data_file);
-    let mut total_lines = 0;
-    let mut lines_processed = 0;
+    let mut total_lines = 0.0;
+    let mut lines_processed = 0.0;
     let mut total_weight = 0.0;
 
     for line in reader.lines() {
         let line = line?;
-        total_lines += 1;
+        let weight = weight_spec.map_or(1.0, |spec| spec.extract_weight(&line));
+        total_lines += weight;
 
         if let Some(filter_logic) = filter {
             match filter_logic.evaluate(questions_map, &line) {
@@ -370,7 +382,6 @@ fn process_data_file(
             }
         }
 
-        let weight = weight_spec.map_or(1.0, |spec| spec.extract_weight(&line));
         total_weight += weight;
 
         for question_label in questions_to_process {
@@ -400,8 +411,8 @@ fn process_data_file(
             }
         }
 
-        lines_processed += 1;
-        if lines_processed % 100 == 0 {
+        lines_processed += weight;
+        if lines_processed % 100.0 == 0.0 {
             print!(".");
             std::io::Write::flush(&mut std::io::stdout()).unwrap();
         }
@@ -441,14 +452,7 @@ fn main() -> IoResult<()> {
     // Report filtering statistics if a filter was used
     #[allow(clippy::cast_precision_loss)]
     if filter.is_some() {
-        let lines_excluded = total_lines - lines_processed;
-        let included_pct = calculate_percentage(lines_processed as f64, total_lines as f64);
-        let excluded_pct = calculate_percentage(lines_excluded as f64, total_lines as f64);
-
-        println!("Total lines:           {total_lines:>6}");
-        println!("Lines matching filter: {lines_processed:>6} {included_pct:>3}%");
-        println!("Lines excluded:        {lines_excluded:>6} {excluded_pct:>3}%");
-        println!();
+        print_filter_frequencies(total_lines, lines_processed);
     }
 
     for question_label in &questions_to_process {
