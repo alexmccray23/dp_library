@@ -203,9 +203,9 @@ fn print_filter_frequencies(total_lines: f64, lines_processed: f64) {
     let included_pct = calculate_percentage(lines_processed, total_lines);
     let excluded_pct = calculate_percentage(lines_excluded, total_lines);
 
-    println!("Total lines:           {total_lines:>6}");
-    println!("Lines matching filter: {lines_processed:>6} {included_pct:>3}%");
-    println!("Lines excluded:        {lines_excluded:>6} {excluded_pct:>3}%");
+    println!("Total lines:           {total_lines:>6.0}");
+    println!("Lines matching filter: {lines_processed:>6.0} {included_pct:>3}%");
+    println!("Lines excluded:        {lines_excluded:>6.0} {excluded_pct:>3}%");
     println!();
 }
 
