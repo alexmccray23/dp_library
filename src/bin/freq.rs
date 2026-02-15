@@ -121,11 +121,12 @@ struct FrequencyStats {
     clippy::cast_sign_loss,
     clippy::cast_precision_loss
 )]
-fn calculate_percentage(count: f64, total: f64) -> u32 {
+fn calculate_percentage(count: f64, total: f64) -> f64 {
     if total == 0.0 {
-        0
+        0.0
     } else {
-        (count / total).mul_add(100.0, 0.5).floor() as u32
+        // (count / total).mul_add(100.0, 0.5).floor() as u32
+        (count / total) * 100.
     }
 }
 
@@ -161,9 +162,9 @@ fn print_question_frequency(
         let count = stats.punch_counts.get(punch_code).unwrap_or(&0.0);
         let percentage = calculate_percentage(*count, total_weight);
         if let Some(response_text) = response_opt.as_deref() {
-            println!("{punch_code:>4} {response_text:<64} {count:>5.0} {percentage:>3}%");
+            println!("{punch_code:>4} {response_text:<64} {count:>5.0} {percentage:>5.1}%");
         } else {
-            println!("{:>4} {punch_code:<64} {count:>5.0} {percentage:>3}%", "");
+            println!("{:>4} {punch_code:<64} {count:>5.0} {percentage:>5.1}%", "");
         }
 
         total_responses += count;
@@ -174,26 +175,26 @@ fn print_question_frequency(
     // Print summary statistics
     let total_pct = calculate_percentage(total_responses, total_weight);
     println!(
-        "     {:<64} {:>5.0} {:>3}%",
+        "     {:<64} {:>5.0} {:>5.1}%",
         "TOTAL RESPONSES", total_responses, total_pct
     );
 
     let valid_pct = calculate_percentage(stats.valid_cases, total_weight);
     println!(
-        "     {:<64} {:>5.0} {:>3}%",
+        "     {:<64} {:>5.0} {:>5.1}%",
         "VALID CASES", stats.valid_cases, valid_pct
     );
 
     let missing_weight = total_weight - stats.valid_cases;
     let missing_pct = calculate_percentage(missing_weight, total_weight);
     println!(
-        "     {:<64} {:>5.0} {:>3}%",
+        "     {:<64} {:>5.0} {:>5.1}%",
         "MISSING CASES", missing_weight, missing_pct
     );
 
     println!(
-        "     {:<64} {:>5.0} {:>3}%",
-        "TOTAL CASES", total_weight, 100
+        "     {:<64} {:>5.0} {:>5.1}%",
+        "TOTAL CASES", total_weight, 100.0
     );
     println!();
 }
