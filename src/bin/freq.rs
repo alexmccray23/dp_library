@@ -162,9 +162,9 @@ fn print_question_frequency(
         let count = stats.punch_counts.get(punch_code).unwrap_or(&0.0);
         let percentage = calculate_percentage(*count, total_weight);
         if let Some(response_text) = response_opt.as_deref() {
-            println!("{punch_code:>4} {response_text:<64} {count:>5.0} {percentage:>5.1}%");
+            println!("{punch_code:>4} {response_text:<64} {count:>6.0} {percentage:>6.1}%");
         } else {
-            println!("{:>4} {punch_code:<64} {count:>5.0} {percentage:>5.1}%", "");
+            println!("{:>4} {punch_code:<64} {count:>6.0} {percentage:>6.1}%", "");
         }
 
         total_responses += count;
@@ -175,25 +175,25 @@ fn print_question_frequency(
     // Print summary statistics
     let total_pct = calculate_percentage(total_responses, total_weight);
     println!(
-        "     {:<64} {:>5.0} {:>5.1}%",
+        "     {:<64} {:>6.0} {:>6.1}%",
         "TOTAL RESPONSES", total_responses, total_pct
     );
 
     let valid_pct = calculate_percentage(stats.valid_cases, total_weight);
     println!(
-        "     {:<64} {:>5.0} {:>5.1}%",
+        "     {:<64} {:>6.0} {:>6.1}%",
         "VALID CASES", stats.valid_cases, valid_pct
     );
 
     let missing_weight = total_weight - stats.valid_cases;
     let missing_pct = calculate_percentage(missing_weight, total_weight);
     println!(
-        "     {:<64} {:>5.0} {:>5.1}%",
+        "     {:<64} {:>6.0} {:>6.1}%",
         "MISSING CASES", missing_weight, missing_pct
     );
 
     println!(
-        "     {:<64} {:>5.0} {:>5.1}%",
+        "     {:<64} {:>6.0} {:>6.1}%",
         "TOTAL CASES", total_weight, 100.0
     );
     println!();
@@ -205,8 +205,8 @@ fn print_filter_frequencies(total_lines: f64, lines_processed: f64) {
     let excluded_pct = calculate_percentage(lines_excluded, total_lines);
 
     println!("Total lines:           {total_lines:>6.0}");
-    println!("Lines matching filter: {lines_processed:>6.0} {included_pct:>3}%");
-    println!("Lines excluded:        {lines_excluded:>6.0} {excluded_pct:>3}%");
+    println!("Lines matching filter: {lines_processed:>6.0} {included_pct:>6.1}%");
+    println!("Lines excluded:        {lines_excluded:>6.0} {excluded_pct:>6.1}%");
     println!();
 }
 
