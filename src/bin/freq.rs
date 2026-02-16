@@ -137,6 +137,38 @@ fn calculate_percentage(count: f64, total: f64) -> f64 {
     }
 }
 
+struct ColumnFormatter {
+    text_width: usize,
+    truncate: bool,
+}
+
+impl ColumnFormatter {
+    fn new(verbose: bool, max_text_len: usize) -> Self {
+        if verbose {
+            Self {
+                text_width: max_text_len.max(64),
+                truncate: false,
+            }
+        } else {
+            Self {
+                text_width: 64,
+                truncate: true,
+            }
+        }
+    }
+
+    fn format_row(&self, code: &str, text: &str, count: f64, pct: f64) -> String {
+        let w = self.text_width;
+        let display = if self.truncate && text.chars().count() > w {
+            let t: String = text.chars().take(w - 3).collect();
+            format!("{t}...")
+        } else {
+            text.to_string()
+        };
+        format!("{code:>4} {display:<w$} {count:>6.0} {pct:>6.1}%")
+    }
+}
+
 fn print_question_frequency(
     verbose: bool,
     question: &RflQuestion,
@@ -166,82 +198,47 @@ fn print_question_frequency(
         }
     });
 
-    let mut max_punch_len = 0;
-    let mut max_resp_len = 0;
-    for (punch_code, response_opt) in &sorted_punches {
-        max_punch_len = max_punch_len.max(punch_code.len());
-        max_resp_len = response_opt
-            .as_ref()
-            .map_or(0, |resp_len| max_resp_len.max(resp_len.len()));
-    }
+    let max_text_len = sorted_punches
+        .iter()
+        .map(|(code, resp)| resp.as_ref().map_or(code.len(), String::len))
+        .max()
+        .unwrap_or(0);
+    let fmt = ColumnFormatter::new(verbose, max_text_len);
 
     for (punch_code, response_opt) in sorted_punches {
-        let count = stats.punch_counts.get(punch_code).unwrap_or(&0.0);
-        let percentage = calculate_percentage(*count, total_weight);
-        if let Some(response_text) = response_opt.as_deref() {
-            if verbose {
-                let pad = (65_usize.saturating_sub(response_text.len()))
-                    .max(max_resp_len.saturating_sub(response_text.len()));
-                println!(
-                    "{punch_code:>4} {response_text}{}{count:>6.0} {percentage:>6.1}%",
-                    " ".repeat(pad)
-                );
-            } else {
-                let truncated_text = if response_text.len() > 64 {
-                    response_text[0..61].to_string() + "..."
-                } else {
-                    response_text.to_string()
-                };
-                println!("{punch_code:>4} {truncated_text:<64} {count:>6.0} {percentage:>6.1}%");
-            }
-        } else if verbose {
-            let pad = (65_usize.saturating_sub(punch_code.len()))
-                .max(max_punch_len.saturating_sub(punch_code.len()));
-            println!(
-                "{:>4} {punch_code}{}{count:>6.0} {percentage:>6.1}%",
-                "",
-                " ".repeat(pad)
-            );
-        } else {
-            let truncated_text = if punch_code.len() > 64 {
-                punch_code[0..61].to_string() + "..."
-            } else {
-                punch_code.clone()
-            };
-            println!(
-                "{:>4} {truncated_text:<64} {count:>6.0} {percentage:>6.1}%",
-                ""
-            );
-        }
-
+        let count = *stats.punch_counts.get(punch_code).unwrap_or(&0.0);
+        let pct = calculate_percentage(count, total_weight);
+        let (code, text) = response_opt
+            .as_deref()
+            .map_or(("", punch_code.as_str()), |t| (punch_code.as_str(), t));
+        println!("{}", fmt.format_row(code, text, count, pct));
         total_responses += count;
     }
 
     println!();
 
-    // Print summary statistics
     let total_pct = calculate_percentage(total_responses, total_weight);
     println!(
-        "     {:<64} {:>6.0} {:>6.1}%",
-        "TOTAL RESPONSES", total_responses, total_pct
+        "{}",
+        fmt.format_row("", "TOTAL RESPONSES", total_responses, total_pct)
     );
 
     let valid_pct = calculate_percentage(stats.valid_cases, total_weight);
     println!(
-        "     {:<64} {:>6.0} {:>6.1}%",
-        "VALID CASES", stats.valid_cases, valid_pct
+        "{}",
+        fmt.format_row("", "VALID CASES", stats.valid_cases, valid_pct)
     );
 
     let missing_weight = total_weight - stats.valid_cases;
     let missing_pct = calculate_percentage(missing_weight, total_weight);
     println!(
-        "     {:<64} {:>6.0} {:>6.1}%",
-        "MISSING CASES", missing_weight, missing_pct
+        "{}",
+        fmt.format_row("", "MISSING CASES", missing_weight, missing_pct)
     );
 
     println!(
-        "     {:<64} {:>6.0} {:>6.1}%",
-        "TOTAL CASES", total_weight, 100.0
+        "{}",
+        fmt.format_row("", "TOTAL CASES", total_weight, 100.0)
     );
     println!();
 }
