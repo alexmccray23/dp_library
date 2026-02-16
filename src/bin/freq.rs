@@ -166,12 +166,26 @@ fn print_question_frequency(
         }
     });
 
+    let mut max_punch_len = 0;
+    let mut max_resp_len = 0;
+    for (punch_code, response_opt) in &sorted_punches {
+        max_punch_len = max_punch_len.max(punch_code.len());
+        max_resp_len = response_opt
+            .as_ref()
+            .map_or(0, |resp_len| max_resp_len.max(resp_len.len()));
+    }
+
     for (punch_code, response_opt) in sorted_punches {
         let count = stats.punch_counts.get(punch_code).unwrap_or(&0.0);
         let percentage = calculate_percentage(*count, total_weight);
         if let Some(response_text) = response_opt.as_deref() {
             if verbose {
-                println!("{punch_code:>4} {response_text:<64} {count:>6.0} {percentage:>6.1}%");
+                let pad = (65_usize.saturating_sub(response_text.len()))
+                    .max(max_resp_len.saturating_sub(response_text.len()));
+                println!(
+                    "{punch_code:>4} {response_text}{}{count:>6.0} {percentage:>6.1}%",
+                    " ".repeat(pad)
+                );
             } else {
                 let truncated_text = if response_text.len() > 64 {
                     response_text[0..61].to_string() + "..."
@@ -180,13 +194,24 @@ fn print_question_frequency(
                 };
                 println!("{punch_code:>4} {truncated_text:<64} {count:>6.0} {percentage:>6.1}%");
             }
+        } else if verbose {
+            let pad = (65_usize.saturating_sub(punch_code.len()))
+                .max(max_punch_len.saturating_sub(punch_code.len()));
+            println!(
+                "{:>4} {punch_code}{}{count:>6.0} {percentage:>6.1}%",
+                "",
+                " ".repeat(pad)
+            );
         } else {
-                let truncated_text = if punch_code.len() > 64 {
-                    punch_code[0..61].to_string() + "..."
-                } else {
-                    punch_code.clone()
-                };
-            println!("{:>4} {truncated_text:<64} {count:>6.0} {percentage:>6.1}%", "");
+            let truncated_text = if punch_code.len() > 64 {
+                punch_code[0..61].to_string() + "..."
+            } else {
+                punch_code.clone()
+            };
+            println!(
+                "{:>4} {truncated_text:<64} {count:>6.0} {percentage:>6.1}%",
+                ""
+            );
         }
 
         total_responses += count;
