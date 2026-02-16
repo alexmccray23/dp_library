@@ -27,6 +27,13 @@ struct Args {
     data_file: Option<String>,
 
     #[arg(
+        short = 'v',
+        long = "verbose",
+        help = "Full response shown. Responses no longer truncated"
+    )]
+    verbose: bool,
+
+    #[arg(
         short = 'f',
         long = "filter",
         help = "Filter cases, e.g., \"QD7B(02) AND AGEGROUP(1-3)\""
@@ -131,6 +138,7 @@ fn calculate_percentage(count: f64, total: f64) -> f64 {
 }
 
 fn print_question_frequency(
+    verbose: bool,
     question: &RflQuestion,
     stats: &FrequencyStats,
     _total_lines: f64,
@@ -162,9 +170,23 @@ fn print_question_frequency(
         let count = stats.punch_counts.get(punch_code).unwrap_or(&0.0);
         let percentage = calculate_percentage(*count, total_weight);
         if let Some(response_text) = response_opt.as_deref() {
-            println!("{punch_code:>4} {response_text:<64} {count:>6.0} {percentage:>6.1}%");
+            if verbose {
+                println!("{punch_code:>4} {response_text:<64} {count:>6.0} {percentage:>6.1}%");
+            } else {
+                let truncated_text = if response_text.len() > 64 {
+                    response_text[0..61].to_string() + "..."
+                } else {
+                    response_text.to_string()
+                };
+                println!("{punch_code:>4} {truncated_text:<64} {count:>6.0} {percentage:>6.1}%");
+            }
         } else {
-            println!("{:>4} {punch_code:<64} {count:>6.0} {percentage:>6.1}%", "");
+                let truncated_text = if punch_code.len() > 64 {
+                    punch_code[0..61].to_string() + "..."
+                } else {
+                    punch_code.clone()
+                };
+            println!("{:>4} {truncated_text:<64} {count:>6.0} {percentage:>6.1}%", "");
         }
 
         total_responses += count;
@@ -460,7 +482,7 @@ fn main() -> IoResult<()> {
         if let Some(question) = questions_map.get(question_label)
             && let Some(stats) = all_stats.get(question_label)
         {
-            print_question_frequency(question, stats, lines_processed, total_weight);
+            print_question_frequency(args.verbose, question, stats, lines_processed, total_weight);
         }
     }
 
