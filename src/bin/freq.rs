@@ -29,7 +29,7 @@ struct Args {
     #[arg(
         short = 'v',
         long = "verbose",
-        help = "Full response shown. Responses no longer truncated"
+        help = "Full response label shown (no longer truncated)"
     )]
     verbose: bool,
 
