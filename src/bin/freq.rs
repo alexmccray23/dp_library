@@ -236,10 +236,7 @@ fn print_question_frequency(
         fmt.format_row("", "MISSING CASES", missing_weight, missing_pct)
     );
 
-    println!(
-        "{}",
-        fmt.format_row("", "TOTAL CASES", total_weight, 100.0)
-    );
+    println!("{}", fmt.format_row("", "TOTAL CASES", total_weight, 100.0));
     println!();
 }
 

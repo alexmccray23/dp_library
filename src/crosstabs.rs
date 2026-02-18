@@ -834,32 +834,20 @@ impl BannersTables {
         subtitle: &str,
         region_question: &mut String,
     ) {
-        // Handle AGE question special case
+        // Handle region question special case
         if region_title.contains("REGION") {
             region_question.clone_from(specs);
         }
 
-        // Handle age group substitutions
+        // Handle region substitutions
         if subtitle.contains("NORTHEAST") {
-            *specs = specs.replace(
-                &*region_question,
-                "FIPSCOMB:09,23,25,33,44,50,10,11,24,34,36,42,54",
-            );
+            *specs = specs.replace(&*region_question, "FIPSCOMB:09,23,25,33,44,50,10,11,24,34,36,42,54",);
         } else if subtitle.contains("MIDWEST") {
-            *specs = specs.replace(
-                &*region_question,
-                "FIPSCOMB:17,18,26,27,39,55,19,20,29,31,38,46",
-            );
+            *specs = specs.replace(&*region_question, "FIPSCOMB:17,18,26,27,39,55,19,20,29,31,38,46",);
         } else if subtitle.contains("SOUTH") {
-            *specs = specs.replace(
-                &*region_question,
-                "FIPSCOMB:01,05,12,13,22,28,45,21,37,40,47,48,51",
-            );
+            *specs = specs.replace(&*region_question, "FIPSCOMB:01,05,12,13,22,28,45,21,37,40,47,48,51",);
         } else if subtitle.contains("WEST") {
-            *specs = specs.replace(
-                &*region_question,
-                "FIPSCOMB:02,04,08,16,30,32,35,49,56,06,15,41,53",
-            );
+            *specs = specs.replace(&*region_question, "FIPSCOMB:02,04,08,16,30,32,35,49,56,06,15,41,53",);
         } else if subtitle.contains("NEW ENGLAND") {
             *specs = specs.replace(&*region_question, "FIPSCOMB:09,23,25,33,44,50");
         } else if subtitle.contains("MID-ATLANTIC") {
