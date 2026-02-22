@@ -437,7 +437,7 @@ fn process_data_file(
                         if !question.responses.contains_key(&response) {
                             if response.parse::<u32>().is_ok() && question.question_type == QuestionType::Fld {
                                 let pad = question.width;
-                                response = format!("{response:<0pad$}");
+                                response = format!("{response:0>pad$}");
                                 if !question.responses.contains_key(&response) {
                                     question.responses.insert(response.clone(), None);
                                 }
