@@ -452,6 +452,7 @@ fn process_data_file(
                         }
                     }
                 }
+
                 if has_response && let Some(stats) = all_stats.get_mut(question_label) {
                     stats.valid_cases += weight;
                 }

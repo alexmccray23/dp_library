@@ -844,6 +844,10 @@ impl BannersTables {
             *specs = specs.replace(&*region_question, "FIPSCOMB:09,23,25,33,44,50,10,11,24,34,36,42,54",);
         } else if subtitle.contains("MIDWEST") {
             *specs = specs.replace(&*region_question, "FIPSCOMB:17,18,26,27,39,55,19,20,29,31,38,46",);
+        } else if subtitle.contains("DEEP SOUTH") {
+            *specs = specs.replace(&*region_question, "FIPSCOMB:01,05,12,13,22,28,45");
+        } else if subtitle.contains("OUTER SOUTH") {
+            *specs = specs.replace(&*region_question, "FIPSCOMB:21,37,40,47,48,51");
         } else if subtitle.contains("SOUTH") {
             *specs = specs.replace(&*region_question, "FIPSCOMB:01,05,12,13,22,28,45,21,37,40,47,48,51",);
         } else if subtitle.contains("WEST") {
@@ -856,10 +860,6 @@ impl BannersTables {
             *specs = specs.replace(&*region_question, "FIPSCOMB:17,18,26,27,39,55");
         } else if subtitle.contains("FARM BELT") {
             *specs = specs.replace(&*region_question, "FIPSCOMB:19,20,29,31,38,46");
-        } else if subtitle.contains("DEEP SOUTH") {
-            *specs = specs.replace(&*region_question, "FIPSCOMB:01,05,12,13,22,28,45");
-        } else if subtitle.contains("OUTER SOUTH") {
-            *specs = specs.replace(&*region_question, "FIPSCOMB:21,37,40,47,48,51");
         } else if subtitle.contains("MOUNTAIN") {
             *specs = specs.replace(&*region_question, "FIPSCOMB:04,08,16,30,32,35,49,56");
         } else if subtitle.contains("PACIFIC") {
