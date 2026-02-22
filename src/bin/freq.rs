@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Result as IoResult};
 use std::path::Path;
@@ -391,6 +392,14 @@ fn parse_and_validate_filter(filter_str: &str) -> CfmcLogic {
     }
 }
 
+fn zero_pad<'a>(raw: &'a str, question: &RflQuestion) -> Cow<'a, str> {
+    if question.question_type == QuestionType::Fld && raw.parse::<u32>().is_ok() {
+        Cow::Owned(format!("{raw:0>pad$}", pad = question.width))
+    } else {
+        Cow::Borrowed(raw)
+    }
+}
+
 fn process_data_file(
     data_filename: &str,
     weight_spec: Option<&WeightSpec>,
@@ -432,27 +441,20 @@ fn process_data_file(
                 let mut has_response = false;
 
                 for response in &responses {
-                    let mut response = response.trim().to_string();
-                    if !response.is_empty() {
-                        if !question.responses.contains_key(&response) {
-                            if response.parse::<u32>().is_ok() && question.question_type == QuestionType::Fld {
-                                let pad = question.width;
-                                response = format!("{response:0>pad$}");
-                                if !question.responses.contains_key(&response) {
-                                    question.responses.insert(response.clone(), None);
-                                }
-                            } else {
-                                question.responses.insert(response.clone(), None);
-                            }
-                        }
+                    let trimmed = response.trim();
+                    if trimmed.is_empty() {
+                        continue;
+                    }
 
-                        if let Some(stats) = all_stats.get_mut(question_label) {
-                            *stats
-                                .punch_counts
-                                .entry(response.clone())
-                                .or_insert(0.0) += weight;
-                            has_response = true;
-                        }
+                    let key = zero_pad(trimmed, question);
+
+                    if !question.responses.contains_key(key.as_ref()) {
+                        question.responses.insert(key.to_string(), None);
+                    }
+
+                    if let Some(stats) = all_stats.get_mut(question_label) {
+                        *stats.punch_counts.entry(key.into_owned()).or_insert(0.0) += weight;
+                        has_response = true;
                     }
                 }
 
