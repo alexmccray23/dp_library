@@ -432,16 +432,21 @@ fn process_data_file(
                 let mut has_response = false;
 
                 for response in &responses {
-                    let response = response.trim();
+                    let mut response = response.trim().to_string();
                     if !response.is_empty() {
-                        if !question.responses.contains_key(response) {
-                            question.responses.insert(response.to_string(), None);
+                        if !question.responses.contains_key(&response) {
+                            if response.parse::<u32>().is_ok() {
+                                let pad = question.width;
+                                response = format!("{response:<0pad$}");
+                            } else {
+                                question.responses.insert(response.clone(), None);
+                            }
                         }
 
                         if let Some(stats) = all_stats.get_mut(question_label) {
                             *stats
                                 .punch_counts
-                                .entry(response.to_string())
+                                .entry(response.clone())
                                 .or_insert(0.0) += weight;
                             has_response = true;
                         }
