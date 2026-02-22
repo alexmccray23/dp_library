@@ -4,7 +4,7 @@ use std::path::Path;
 
 use ahash::AHashMap;
 use clap::Parser;
-use dp_library::{CfmcLogic, RflFile, RflQuestion};
+use dp_library::{CfmcLogic, QuestionType, RflFile, RflQuestion};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -435,9 +435,12 @@ fn process_data_file(
                     let mut response = response.trim().to_string();
                     if !response.is_empty() {
                         if !question.responses.contains_key(&response) {
-                            if response.parse::<u32>().is_ok() {
+                            if response.parse::<u32>().is_ok() && question.question_type == QuestionType::Fld {
                                 let pad = question.width;
                                 response = format!("{response:<0pad$}");
+                                if !question.responses.contains_key(&response) {
+                                    question.responses.insert(response.clone(), None);
+                                }
                             } else {
                                 question.responses.insert(response.clone(), None);
                             }
