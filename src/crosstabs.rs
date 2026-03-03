@@ -1,6 +1,6 @@
-use ahash::AHashMap;
 use crate::rfl::RflQuestion;
-use calamine::{open_workbook_auto, Data, Reader};
+use ahash::AHashMap;
+use calamine::{Data, Reader, open_workbook_auto};
 use std::error::Error;
 use std::fmt;
 use std::fmt::Write;
@@ -70,17 +70,19 @@ impl CrossTabsLogic {
                 .replace("/Q", ":Q")
                 .replace('/', " OR ");
             if let Some(colon_pos) = logic.find(':')
-                && let Some(or_pos) = logic[colon_pos..].find(" OR ") {
-                    let actual_or_pos = colon_pos + or_pos;
-                    let codes = &logic[colon_pos + 1..actual_or_pos];
-                    logic = logic.replace(" OR ", &format!("{codes} OR "));
-                }
+                && let Some(or_pos) = logic[colon_pos..].find(" OR ")
+            {
+                let actual_or_pos = colon_pos + or_pos;
+                let codes = &logic[colon_pos + 1..actual_or_pos];
+                logic = logic.replace(" OR ", &format!("{codes} OR "));
+            }
         }
         // Handle "DO NOT SELECT" patterns: "Q5: DO NOT SELECT :1 OR :3" -> "NOT(Q5:1,3)"
         if logic.contains("DO NOT SELECT")
-            && let Some(converted) = Self::convert_do_not_select(&logic) {
-                logic = converted;
-            }
+            && let Some(converted) = Self::convert_do_not_select(&logic)
+        {
+            logic = converted;
+        }
 
         // Handle "):" syntax...
         if logic.contains("):") {
@@ -184,6 +186,9 @@ impl CrossTabsLogic {
     }
 
     fn find_operator_outside_parens(logic: &str, operator: &str) -> Option<usize> {
+        if logic.is_empty() {
+            return None;
+        }
         let mut paren_depth = 0;
         let logic_chars: Vec<char> = logic.chars().collect();
         let op_chars: Vec<char> = operator.chars().collect();
@@ -614,9 +619,9 @@ impl CrossTabsTable {
                 if !base_exists
                     && let Ok(base_crosstab) =
                         CrossTab::new(&crosstab.base, &crosstab.base, "ALL", "NOPRINT")
-                    {
-                        additional_crosstabs.push(base_crosstab);
-                    }
+                {
+                    additional_crosstabs.push(base_crosstab);
+                }
             }
         }
 
@@ -751,29 +756,30 @@ impl BannersTables {
                     &format!("/BANNER {cleaned_index}"),
                 ));
             } else if !subtitle.is_empty()
-                && let Some(ref mut table) = current_table {
-                    match table.add_banner(&title, &subtitle, &specs, &base, "") {
-                        Ok(()) => {}
-                        Err(e) => {
-                            eprintln!(
-                                "Warning: Failed to parse specs '{specs}' for banner '{subtitle}': {e}"
-                            );
-                            // Create a banner with the raw specs as a fallback
-                            let fallback_banner = Banner {
-                                title: title.trim().to_string(),
-                                subtitle: subtitle.trim().to_string(),
-                                specs: CrossTabsLogic {
-                                    value: Some(format!("ERROR_PARSING: {specs}")),
-                                    left: None,
-                                    right: None,
-                                },
-                                base,
-                                options: String::new(),
-                            };
-                            table.banners.push(fallback_banner);
-                        }
+                && let Some(ref mut table) = current_table
+            {
+                match table.add_banner(&title, &subtitle, &specs, &base, "") {
+                    Ok(()) => {}
+                    Err(e) => {
+                        eprintln!(
+                            "Warning: Failed to parse specs '{specs}' for banner '{subtitle}': {e}"
+                        );
+                        // Create a banner with the raw specs as a fallback
+                        let fallback_banner = Banner {
+                            title: title.trim().to_string(),
+                            subtitle: subtitle.trim().to_string(),
+                            specs: CrossTabsLogic {
+                                value: Some(format!("ERROR_PARSING: {specs}")),
+                                left: None,
+                                right: None,
+                            },
+                            base,
+                            options: String::new(),
+                        };
+                        table.banners.push(fallback_banner);
                     }
                 }
+            }
         }
 
         if let Some(table) = current_table {
@@ -841,17 +847,29 @@ impl BannersTables {
 
         // Handle region substitutions
         if subtitle.contains("NORTHEAST") {
-            *specs = specs.replace(&*region_question, "FIPSCOMB:09,23,25,33,44,50,10,11,24,34,36,42,54",);
+            *specs = specs.replace(
+                &*region_question,
+                "FIPSCOMB:09,23,25,33,44,50,10,11,24,34,36,42,54",
+            );
         } else if subtitle.contains("MIDWEST") {
-            *specs = specs.replace(&*region_question, "FIPSCOMB:17,18,26,27,39,55,19,20,29,31,38,46",);
+            *specs = specs.replace(
+                &*region_question,
+                "FIPSCOMB:17,18,26,27,39,55,19,20,29,31,38,46",
+            );
         } else if subtitle.contains("DEEP SOUTH") {
             *specs = specs.replace(&*region_question, "FIPSCOMB:01,05,12,13,22,28,45");
         } else if subtitle.contains("OUTER SOUTH") {
             *specs = specs.replace(&*region_question, "FIPSCOMB:21,37,40,47,48,51");
         } else if subtitle.contains("SOUTH") {
-            *specs = specs.replace(&*region_question, "FIPSCOMB:01,05,12,13,22,28,45,21,37,40,47,48,51",);
+            *specs = specs.replace(
+                &*region_question,
+                "FIPSCOMB:01,05,12,13,22,28,45,21,37,40,47,48,51",
+            );
         } else if subtitle.contains("WEST") {
-            *specs = specs.replace(&*region_question, "FIPSCOMB:02,04,08,16,30,32,35,49,56,06,15,41,53",);
+            *specs = specs.replace(
+                &*region_question,
+                "FIPSCOMB:02,04,08,16,30,32,35,49,56,06,15,41,53",
+            );
         } else if subtitle.contains("NEW ENGLAND") {
             *specs = specs.replace(&*region_question, "FIPSCOMB:09,23,25,33,44,50");
         } else if subtitle.contains("MID-ATLANTIC") {
@@ -890,9 +908,9 @@ impl BannersTables {
         if let (Some(_letter_pos), Some(digit_pos)) = (last_letter_pos, digit_start)
             && (digit_pos == spec.len() - 1
                 || spec.chars().skip(digit_pos).all(|c| c.is_ascii_digit()))
-            {
-                return format!("{}:{}", &spec[..digit_pos], &spec[digit_pos..]);
-            }
+        {
+            return format!("{}:{}", &spec[..digit_pos], &spec[digit_pos..]);
+        }
 
         spec.to_string()
     }
