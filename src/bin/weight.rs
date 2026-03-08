@@ -120,7 +120,8 @@ fn main() {
 
     // Resolve files.
     let exec_file = resolve_file(args.exec_file.as_ref(), &[".e"], ".E file");
-    let layout_file = resolve_file(args.layout_file.as_ref(), &[".rfl"], ".rfl file");
+    let layout_file = args.layout_file.clone()
+        .or_else(|| find_file_with_extension(".", &[".rfl"]));
     let data_file = args.data_file.clone().unwrap_or_else(|| {
         find_file_with_extension(".", &[".c"])
             .or_else(|| find_file_with_extension(".", &[".fin"]))
@@ -135,7 +136,9 @@ fn main() {
         .unwrap_or_else(|| default_output_name(&data_file));
 
     eprintln!("Exec file:   {exec_file}");
-    eprintln!("Layout file: {layout_file}");
+    if let Some(ref lf) = layout_file {
+        eprintln!("Layout file: {lf}");
+    }
     eprintln!("Data file:   {data_file}");
     eprintln!("Output file: {output_file}");
 
@@ -147,10 +150,8 @@ fn main() {
 
     let d = &spec.directive;
     let field_width = d.field_width();
-    eprintln!(
-        "\nWeight tables: {}-{}",
-        d.table_start, d.table_end
-    );
+    let table_ids_str: Vec<String> = d.table_ids.iter().map(|id| id.to_string()).collect();
+    eprintln!("\nWeight tables: {}", table_ids_str.join(", "));
     eprintln!(
         "Output location: cols {}-{} ({} decimal places, {} chars wide)",
         d.col_start, d.col_end, d.decimal_width, field_width
@@ -170,10 +171,12 @@ fn main() {
         );
     }
 
-    // Load RFL and data.
-    let rfl = RflFile::from_file(&layout_file).unwrap_or_else(|e| {
-        eprintln!("Error reading layout file: {e}");
-        process::exit(1);
+    // Load RFL (optional — only needed for CFMC conditions or base_weight_field).
+    let rfl = layout_file.map(|lf| {
+        RflFile::from_file(&lf).unwrap_or_else(|e| {
+            eprintln!("Error reading layout file: {e}");
+            process::exit(1);
+        })
     });
     let data = read_data_lines(&data_file);
     eprintln!("Records: {}", data.len());
@@ -200,7 +203,7 @@ fn main() {
         },
     };
 
-    let (survey, targets) = classify(&scheme, &rfl, &data).unwrap_or_else(|e| {
+    let (survey, targets) = classify(&scheme, rfl.as_ref(), &data).unwrap_or_else(|e| {
         eprintln!("\nClassification error: {e}");
         process::exit(1);
     });

@@ -10,8 +10,7 @@ use crate::weight::{UncleExpr, WeightCategory, WeightCondition, WeightTable};
 
 #[derive(Debug)]
 pub struct WeightDirective {
-    pub table_start: u16,
-    pub table_end: u16,
+    pub table_ids: Vec<u16>,
     pub col_start: usize,
     pub col_end: usize,
     pub decimal_width: usize,
@@ -98,9 +97,9 @@ pub fn parse_e_content(content: &str, control_table_id: u16) -> Result<ParsedWei
 
     let directive = extract_weight_directive(&lines, control_range)?;
 
-    // Parse each weight table in the range.
+    // Parse each weight table.
     let mut tables = Vec::new();
-    for table_id in directive.table_start..=directive.table_end {
+    for &table_id in &directive.table_ids {
         let block = table_blocks
             .iter()
             .find(|b| b.id == table_id)
@@ -166,7 +165,12 @@ fn extract_weight_directive(
             if rest.is_empty() || !rest.starts_with(|c: char| c.is_ascii_whitespace()) {
                 continue;
             }
-            return parse_weight_line(rest.trim(), i + 1);
+            let rest = rest.trim();
+            // Skip non-directive WEIGHT commands (e.g. "X WEIGHT UNWEIGHT").
+            if rest.eq_ignore_ascii_case("UNWEIGHT") {
+                continue;
+            }
+            return parse_weight_line(rest, i + 1);
         }
     }
     Err(ParseEError {
@@ -175,7 +179,14 @@ fn extract_weight_directive(
     })
 }
 
-/// Parse: `601 TH 610 TO 1!2000:2006 4 OFF [TOTAL 800]`
+/// Parse the tokens after `X WEIGHT`. Supported forms:
+///
+/// - `601 TH 610 TO 1!2000:2006 4 OFF`
+/// - `601 TO 1!5060:5066 4`
+/// - `601 603 TH 606 608 TH 610 TO 1!5060:5066 4`
+///
+/// Everything before `TO` is table IDs and ranges. After `TO`: column
+/// location, decimal width, optional `OFF`, optional `TOTAL <n>`.
 fn parse_weight_line(s: &str, line_num: usize) -> Result<WeightDirective, ParseEError> {
     let err = |msg: &str| ParseEError {
         line_num,
@@ -183,37 +194,39 @@ fn parse_weight_line(s: &str, line_num: usize) -> Result<WeightDirective, ParseE
     };
 
     let tokens: Vec<&str> = s.split_whitespace().collect();
-    // Minimum: <start> TH <end> TO 1!<loc> <dec> OFF  → 7 tokens
-    if tokens.len() < 7 {
-        return Err(err("too few tokens"));
+
+    // Find the TO token — everything before it describes table IDs/ranges.
+    let to_pos = tokens
+        .iter()
+        .position(|t| t.eq_ignore_ascii_case("TO"))
+        .ok_or_else(|| err("missing 'TO' keyword"))?;
+
+    let table_ids = parse_table_id_list(&tokens[..to_pos], line_num)?;
+    if table_ids.is_empty() {
+        return Err(err("no table IDs before 'TO'"));
     }
 
-    let table_start: u16 = tokens[0].parse().map_err(|_| err("invalid start table ID"))?;
-
-    if !tokens[1].eq_ignore_ascii_case("TH") {
-        return Err(err("expected 'TH' after start table ID"));
+    // After TO: 1!<col_range> <decimal_width> [OFF] [TOTAL <n>]
+    let after_to = &tokens[to_pos + 1..];
+    if after_to.len() < 2 {
+        return Err(err("expected column range and decimal width after 'TO'"));
     }
 
-    let table_end: u16 = tokens[2].parse().map_err(|_| err("invalid end table ID"))?;
-
-    if !tokens[3].eq_ignore_ascii_case("TO") {
-        return Err(err("expected 'TO' after end table ID"));
-    }
-
-    let loc_str = tokens[4].strip_prefix("1!").unwrap_or(tokens[4]);
+    let loc_str = after_to[0].strip_prefix("1!").unwrap_or(after_to[0]);
     let (col_start, col_end) = parse_col_range(loc_str)
         .ok_or_else(|| err("invalid column range (expected e.g. 2000:2006)"))?;
 
-    let decimal_width: usize = tokens[5].parse().map_err(|_| err("invalid decimal width"))?;
+    let decimal_width: usize = after_to[1]
+        .parse()
+        .map_err(|_| err("invalid decimal width"))?;
 
-    // tokens[6] should be "OFF" — skip it.
-    // Look for optional TOTAL.
+    // Scan remaining tokens for optional TOTAL.
     let mut total = None;
-    let mut j = 7;
-    while j < tokens.len() {
-        if tokens[j].eq_ignore_ascii_case("TOTAL") && j + 1 < tokens.len() {
+    let mut j = 2;
+    while j < after_to.len() {
+        if after_to[j].eq_ignore_ascii_case("TOTAL") && j + 1 < after_to.len() {
             total = Some(
-                tokens[j + 1]
+                after_to[j + 1]
                     .parse::<f64>()
                     .map_err(|_| err("invalid TOTAL value"))?,
             );
@@ -223,13 +236,48 @@ fn parse_weight_line(s: &str, line_num: usize) -> Result<WeightDirective, ParseE
     }
 
     Ok(WeightDirective {
-        table_start,
-        table_end,
+        table_ids,
         col_start,
         col_end,
         decimal_width,
         total,
     })
+}
+
+/// Parse table IDs from tokens before `TO`.
+///
+/// Handles individual IDs and `<start> TH <end>` ranges:
+/// - `601` → `[601]`
+/// - `601 TH 610` → `[601, 602, ..., 610]`
+/// - `601 603 TH 606 608 TH 610` → `[601, 603, 604, 605, 606, 608, 609, 610]`
+fn parse_table_id_list(tokens: &[&str], line_num: usize) -> Result<Vec<u16>, ParseEError> {
+    let err = |msg: String| ParseEError {
+        line_num,
+        message: format!("X WEIGHT parse error: {msg}"),
+    };
+
+    let mut ids = Vec::new();
+    let mut i = 0;
+
+    while i < tokens.len() {
+        let id: u16 = tokens[i]
+            .parse()
+            .map_err(|_| err(format!("invalid table ID '{}'", tokens[i])))?;
+
+        // Check if next token is TH → range.
+        if i + 2 < tokens.len() && tokens[i + 1].eq_ignore_ascii_case("TH") {
+            let end: u16 = tokens[i + 2]
+                .parse()
+                .map_err(|_| err(format!("invalid end table ID '{}'", tokens[i + 2])))?;
+            ids.extend(id..=end);
+            i += 3;
+        } else {
+            ids.push(id);
+            i += 1;
+        }
+    }
+
+    Ok(ids)
 }
 
 fn parse_col_range(s: &str) -> Option<(usize, usize)> {
@@ -349,8 +397,7 @@ R SOMETHING;1!50-1;VALUE 1.0
     fn parse_control_table_and_weight_tables() {
         let spec = parse_e_content(SAMPLE_E, 600).unwrap();
         let d = &spec.directive;
-        assert_eq!(d.table_start, 601);
-        assert_eq!(d.table_end, 602);
+        assert_eq!(d.table_ids, vec![601, 602]);
         assert_eq!(d.col_start, 2000);
         assert_eq!(d.col_end, 2006);
         assert_eq!(d.decimal_width, 4);
@@ -419,6 +466,113 @@ R REST;1!10-2:3;VALUE .4
 ";
         let spec = parse_e_content(content, 600).unwrap();
         assert_eq!(spec.tables[0].categories.len(), 2);
+    }
+
+    #[test]
+    fn parse_single_table_no_th() {
+        let content = "\
+TABLE 600
+X WEIGHT 601 TO 1!5060:5066 4
+*
+TABLE 601
+R A;1!10-1;VALUE .5
+R B;1!10-2;VALUE .5
+";
+        let spec = parse_e_content(content, 600).unwrap();
+        assert_eq!(spec.directive.table_ids, vec![601]);
+        assert_eq!(spec.tables.len(), 1);
+    }
+
+    #[test]
+    fn parse_multi_range_tables() {
+        let content = "\
+TABLE 600
+X WEIGHT 601 603 TH 606 608 TH 610 TO 1!5060:5066 4
+*
+TABLE 601
+R A;1!10-1;VALUE .5
+R B;1!10-2;VALUE .5
+*
+TABLE 603
+R A;1!11-1;VALUE .5
+R B;1!11-2;VALUE .5
+*
+TABLE 604
+R A;1!12-1;VALUE .5
+R B;1!12-2;VALUE .5
+*
+TABLE 605
+R A;1!13-1;VALUE .5
+R B;1!13-2;VALUE .5
+*
+TABLE 606
+R A;1!14-1;VALUE .5
+R B;1!14-2;VALUE .5
+*
+TABLE 608
+R A;1!15-1;VALUE .5
+R B;1!15-2;VALUE .5
+*
+TABLE 609
+R A;1!16-1;VALUE .5
+R B;1!16-2;VALUE .5
+*
+TABLE 610
+R A;1!17-1;VALUE .5
+R B;1!17-2;VALUE .5
+";
+        let spec = parse_e_content(content, 600).unwrap();
+        assert_eq!(spec.directive.table_ids, vec![601, 603, 604, 605, 606, 608, 609, 610]);
+        assert_eq!(spec.tables.len(), 8);
+    }
+
+    #[test]
+    fn parse_unweight_then_weight() {
+        let content = "\
+TABLE 600
+X ENTER NOADD
+X WEIGHT UNWEIGHT
+X WEIGHT 601 TH 609 TO 1!5060:5066 4
+*
+TABLE 601
+R A;1!10-1;VALUE .5
+R B;1!10-2;VALUE .5
+*
+TABLE 602
+R A;1!11-1;VALUE .5
+R B;1!11-2;VALUE .5
+*
+TABLE 603
+R A;1!12-1;VALUE .5
+R B;1!12-2;VALUE .5
+*
+TABLE 604
+R A;1!13-1;VALUE .5
+R B;1!13-2;VALUE .5
+*
+TABLE 605
+R A;1!14-1;VALUE .5
+R B;1!14-2;VALUE .5
+*
+TABLE 606
+R A;1!15-1;VALUE .5
+R B;1!15-2;VALUE .5
+*
+TABLE 607
+R A;1!16-1;VALUE .5
+R B;1!16-2;VALUE .5
+*
+TABLE 608
+R A;1!17-1;VALUE .5
+R B;1!17-2;VALUE .5
+*
+TABLE 609
+R A;1!18-1;VALUE .5
+R B;1!18-2;VALUE .5
+";
+        let spec = parse_e_content(content, 600).unwrap();
+        assert_eq!(spec.directive.table_ids, vec![601, 602, 603, 604, 605, 606, 607, 608, 609]);
+        assert_eq!(spec.tables.len(), 9);
     }
 
     #[test]

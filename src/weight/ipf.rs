@@ -37,11 +37,16 @@ pub enum WeightCondition {
 impl WeightCondition {
     pub fn evaluate(
         &self,
-        questions: &AHashMap<String, RflQuestion>,
+        questions: Option<&AHashMap<String, RflQuestion>>,
         record: &str,
     ) -> Result<bool, String> {
         match self {
-            Self::Cfmc(logic) => logic.evaluate(questions, record),
+            Self::Cfmc(logic) => {
+                let questions = questions.ok_or(
+                    "RFL layout file is required to evaluate CFMC conditions"
+                )?;
+                logic.evaluate(questions, record)
+            }
             Self::Uncle(expr) => expr.evaluate(record),
         }
     }
@@ -133,7 +138,7 @@ impl std::error::Error for WeightError {
 /// Classify records and run raking. Returns one weight per record.
 pub fn compute_weights(
     scheme: &WeightScheme,
-    rfl: &RflFile,
+    rfl: Option<&RflFile>,
     data: &[String],
 ) -> Result<Vec<f64>, WeightError> {
     let (survey, targets) = classify(scheme, rfl, data)?;
@@ -144,17 +149,22 @@ pub fn compute_weights(
 /// Returns a `CodedSurvey` and `ValidatedTargets` ready for raking.
 pub fn classify(
     scheme: &WeightScheme,
-    rfl: &RflFile,
+    rfl: Option<&RflFile>,
     data: &[String],
 ) -> Result<(CodedSurvey, ValidatedTargets), WeightError> {
     let n_records = data.len();
     let n_tables = scheme.tables.len();
-    let questions = rfl.questions();
+    let questions = rfl.map(RflFile::questions);
 
     // Extract base weights if a field is configured.
     let base_weights: Option<Vec<f64>> = match &scheme.config.base_weight_field {
         None => None,
         Some(field) => {
+            let rfl = rfl.ok_or_else(|| WeightError::BaseWeightField {
+                field: field.clone(),
+                record: 0,
+                detail: "RFL layout file is required for base_weight_field".to_string(),
+            })?;
             let question = rfl.get_question(field).ok_or_else(|| WeightError::BaseWeightField {
                 field: field.clone(),
                 record: 0,
@@ -433,14 +443,14 @@ mod tests {
 
     #[test]
     fn compute_weights_returns_one_weight_per_record() {
-        let weights = compute_weights(&make_scheme(), &make_rfl(), &make_data()).unwrap();
+        let weights = compute_weights(&make_scheme(), Some(&make_rfl()), &make_data()).unwrap();
         assert_eq!(weights.len(), 6);
     }
 
     #[test]
     fn weights_sum_to_grand_total() {
         // Both tables' targets sum to 1.0 → grand total = 1.0.
-        let weights = compute_weights(&make_scheme(), &make_rfl(), &make_data()).unwrap();
+        let weights = compute_weights(&make_scheme(), Some(&make_rfl()), &make_data()).unwrap();
         let sum: f64 = weights.iter().sum();
         assert!((sum - 1.0).abs() < 1e-6, "weights sum = {sum}, expected 1.0");
     }
@@ -457,7 +467,7 @@ mod tests {
             make_record('4', '3'), // AGEGROUP cat 2 (BALANCE), GENDER cat 1 (FEMALE/OTHER)
         ];
 
-        let (survey, _) = classify(&make_scheme(), &make_rfl(), &data).unwrap();
+        let (survey, _) = classify(&make_scheme(), Some(&make_rfl()), &data).unwrap();
 
         // codes are stored [TABLE_601, TABLE_603] per record
         assert_eq!(survey.record_codes(0), &[0, 0]); // MALE, 18-44
@@ -473,7 +483,7 @@ mod tests {
     fn unclassified_record_returns_error() {
         // GENDER=' ' (blank) matches neither GENDER(1) nor GENDER(2,3).
         let data = vec![make_record('1', ' ')];
-        let err = classify(&make_scheme(), &make_rfl(), &data).unwrap_err();
+        let err = classify(&make_scheme(), Some(&make_rfl()), &data).unwrap_err();
         assert!(
             matches!(err, WeightError::Unclassified { table_id: 601, record: 0 }),
             "unexpected error: {err}"
@@ -505,7 +515,7 @@ mod tests {
         };
 
         let data = vec![make_record('1', '1')];
-        let err = classify(&scheme, &rfl, &data).unwrap_err();
+        let err = classify(&scheme, Some(&rfl), &data).unwrap_err();
         assert!(
             matches!(err, WeightError::MultipleMatches { table_id: 603, record: 0, .. }),
             "unexpected error: {err}"
@@ -555,7 +565,7 @@ mod tests {
         };
 
         let data = vec![make_record('1', '1'), make_record('4', '2')];
-        let err = classify(&scheme, &rfl, &data).unwrap_err();
+        let err = classify(&scheme, Some(&rfl), &data).unwrap_err();
         assert!(matches!(err, WeightError::TargetMismatch { .. }), "unexpected error: {err}");
     }
 
@@ -597,7 +607,7 @@ mod tests {
             make_record_with_basewt('1', '1', "0.5  "),
         ];
 
-        let (survey, _) = classify(&scheme, &rfl, &data).unwrap();
+        let (survey, _) = classify(&scheme, Some(&rfl), &data).unwrap();
         assert_eq!(survey.base_weight(0), 2.0);
         assert_eq!(survey.base_weight(1), 1.0);
         assert_eq!(survey.base_weight(2), 0.5);
@@ -624,7 +634,7 @@ mod tests {
         };
 
         let data = vec![make_record('1', '1')];
-        let err = classify(&scheme, &rfl, &data).unwrap_err();
+        let err = classify(&scheme, Some(&rfl), &data).unwrap_err();
         assert!(
             matches!(&err, WeightError::BaseWeightField { field, .. } if field == "BASEWT"),
             "unexpected error: {err}"
@@ -659,7 +669,7 @@ mod tests {
         };
 
         let data = vec![make_record_with_basewt('1', '1', "abc  ")];
-        let err = classify(&scheme, &rfl, &data).unwrap_err();
+        let err = classify(&scheme, Some(&rfl), &data).unwrap_err();
         assert!(
             matches!(&err, WeightError::BaseWeightField { record: 0, .. }),
             "unexpected error: {err}"
@@ -676,9 +686,9 @@ mod tests {
         let scheme = make_scheme();
         let data = make_data();
 
-        let one_shot = compute_weights(&scheme, &rfl, &data).unwrap();
+        let one_shot = compute_weights(&scheme, Some(&rfl), &data).unwrap();
 
-        let (survey, targets) = classify(&scheme, &rfl, &data).unwrap();
+        let (survey, targets) = classify(&scheme, Some(&rfl), &data).unwrap();
         let two_phase = rake_classified(&survey, &targets, &scheme.config.raking).unwrap();
 
         assert_eq!(one_shot.len(), two_phase.len());
