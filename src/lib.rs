@@ -9,6 +9,7 @@
 pub mod cfmc;
 pub mod crosstabs;
 pub mod rfl;
+pub mod weight;
 
 // Re-export main types for convenience
 pub use cfmc::{CfmcLogic, CfmcNode, CfmcOperator};

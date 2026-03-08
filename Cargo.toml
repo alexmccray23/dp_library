@@ -15,7 +15,12 @@ path = "src/bin/freq.rs"
 name = "banners"
 path = "src/bin/banners.rs"
 
+[[bin]]
+name = "weight"
+path = "src/bin/weight.rs"
+
 [dependencies]
+ipf_survey = { path = "/home/alexm/rust/ipf_survey" }
 ahash = "0.8"
 calamine = "0.32"
 clap = { version = "4.5", features = ["derive"] }
