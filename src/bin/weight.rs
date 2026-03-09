@@ -19,7 +19,7 @@ struct Args {
     /// Control table ID (e.g., 600)
     table_id: u16,
 
-    #[arg(short = 'e', long = "exec-file", help = "Path to .E file")]
+    #[arg(short = 'e', long = "e-file", help = "Path to .E file")]
     exec_file: Option<String>,
 
     #[arg(short = 'd', long = "data-file", help = "Path to data file (.fin, .rft, .c)")]
@@ -87,7 +87,7 @@ fn read_data_lines(path: &str) -> Vec<String> {
 }
 
 fn format_weight(value: f64, width: usize, decimal: usize) -> String {
-    format!("{value:>width$.decimal$}")
+    format!("{value:0>width$.decimal$}")
 }
 
 fn punch_weight(line: &str, weight_str: &str, col_start: usize, col_end: usize) -> String {
@@ -191,7 +191,7 @@ fn main() {
         config: WeightConfig {
             raking: RakingConfig {
                 convergence: ipf_survey::ConvergenceConfig {
-                    max_iterations: 25,
+                    max_iterations: 40,
                     tolerance: 1e-6,
                     ..Default::default()
                 },
