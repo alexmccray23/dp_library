@@ -18,10 +18,36 @@ pub struct WeightDirective {
 }
 
 impl WeightDirective {
-    #[must_use] 
+    #[must_use]
     pub const fn field_width(&self) -> usize {
         self.col_end - self.col_start + 1
     }
+}
+
+/// A single weighting pass with an optional record qualifier.
+///
+/// When `qualifier` is `Some`, only records matching the expression are
+/// included in this pass's raking. Multiple passes with disjoint qualifiers
+/// allow split-sample weighting (e.g. two half-samples each weighted to their
+/// own TOTAL independently).
+///
+/// **Callers are responsible for ensuring qualifiers are mutually exclusive when
+/// records should receive exactly one weight.** The parser does not enforce this.
+#[derive(Debug)]
+pub struct QualifiedWeightPass {
+    pub qualifier: Option<UncleExpr>,
+    pub directive: WeightDirective,
+}
+
+/// A conditional column assignment from an `X IF(condition) col=value` directive.
+///
+/// Uncle uses these to set fixed values for records that don't participate in
+/// raking (e.g. assigning weight 1 to non-registered voters).
+#[derive(Debug)]
+pub struct ColumnAssignment {
+    pub condition: UncleExpr,
+    pub col: usize,
+    pub value: String,
 }
 
 // ---------------------------------------------------------------------------
@@ -51,15 +77,30 @@ impl std::error::Error for ParseEError {}
 // ---------------------------------------------------------------------------
 
 pub struct ParsedWeightSpec {
-    pub directive: WeightDirective,
+    pub passes: Vec<QualifiedWeightPass>,
     pub tables: Vec<WeightTable>,
+    pub assignments: Vec<ColumnAssignment>,
+}
+
+impl ParsedWeightSpec {
+    /// Convenience accessor for single-pass specs (the common case).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the spec has zero or multiple passes.
+    #[must_use]
+    pub fn directive(&self) -> &WeightDirective {
+        assert_eq!(self.passes.len(), 1, "expected single pass, got {}", self.passes.len());
+        &self.passes[0].directive
+    }
 }
 
 impl fmt::Debug for ParsedWeightSpec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ParsedWeightSpec")
-            .field("directive", &self.directive)
+            .field("passes", &self.passes.len())
             .field("tables_count", &self.tables.len())
+            .field("assignments", &self.assignments.len())
             .finish()
     }
 }
@@ -86,7 +127,7 @@ pub fn parse_e_content(content: &str, control_table_id: u16) -> Result<ParsedWei
     // First pass: index all TABLE blocks by ID → (start_line, end_line).
     let table_blocks = index_table_blocks(&lines);
 
-    // Find the control table and extract X WEIGHT directive.
+    // Find the control table and extract qualified weight passes.
     let control_range = table_blocks
         .iter()
         .find(|b| b.id == control_table_id)
@@ -95,11 +136,21 @@ pub fn parse_e_content(content: &str, control_table_id: u16) -> Result<ParsedWei
             message: format!("TABLE {control_table_id} not found in .E file"),
         })?;
 
-    let directive = extract_weight_directive(&lines, control_range)?;
+    let (passes, assignments) = extract_weight_passes(&lines, control_range)?;
+
+    // Collect the union of all table IDs across passes.
+    let mut seen_ids = Vec::new();
+    for pass in &passes {
+        for &id in &pass.directive.table_ids {
+            if !seen_ids.contains(&id) {
+                seen_ids.push(id);
+            }
+        }
+    }
 
     // Parse each weight table.
     let mut tables = Vec::new();
-    for &table_id in &directive.table_ids {
+    for &table_id in &seen_ids {
         let block = table_blocks
             .iter()
             .find(|b| b.id == table_id)
@@ -111,7 +162,7 @@ pub fn parse_e_content(content: &str, control_table_id: u16) -> Result<ParsedWei
         tables.push(table);
     }
 
-    Ok(ParsedWeightSpec { directive, tables })
+    Ok(ParsedWeightSpec { passes, tables, assignments })
 }
 
 // ---------------------------------------------------------------------------
@@ -155,28 +206,109 @@ fn parse_table_line(line: &str) -> Option<u16> {
 // Internal: X WEIGHT directive
 // ---------------------------------------------------------------------------
 
-fn extract_weight_directive(
+/// Scan the control table for `X SET QUAL(...)`, `X WEIGHT`, and `X IF`
+/// directives. Produces one `QualifiedWeightPass` per `X WEIGHT` line (paired
+/// with the most recently set qualifier) and a list of `ColumnAssignment`s
+/// from `X IF` directives.
+fn extract_weight_passes(
     lines: &[&str],
     block: &TableBlock,
-) -> Result<WeightDirective, ParseEError> {
+) -> Result<(Vec<QualifiedWeightPass>, Vec<ColumnAssignment>), ParseEError> {
+    let mut passes = Vec::new();
+    let mut assignments = Vec::new();
+    let mut current_qual: Option<UncleExpr> = None;
+
     for (i, line) in lines.iter().enumerate().take(block.end).skip(block.start) {
         let trimmed = line.trim();
+
+        // X SET QUAL(expr) — set or clear the current qualifier.
+        if let Some(rest) = trimmed.strip_prefix("X SET QUAL") {
+            let rest = rest.trim();
+            if let Some(inner) = rest.strip_prefix('(').and_then(|r| r.strip_suffix(')')) {
+                let inner = inner.trim();
+                if inner.is_empty() || inner.eq_ignore_ascii_case("ALL") {
+                    current_qual = None;
+                } else {
+                    current_qual = Some(UncleExpr::parse(inner).map_err(|e| ParseEError {
+                        line_num: i + 1,
+                        message: format!("X SET QUAL parse error: {e}"),
+                    })?);
+                }
+            } else if rest.is_empty() {
+                // Bare "X SET QUAL" with no parens clears qualifier.
+                current_qual = None;
+            }
+            continue;
+        }
+
+        // X IF(condition) col=value — conditional column assignment.
+        if let Some(rest) = trimmed.strip_prefix("X IF") {
+            if let Some(assignment) = parse_x_if(rest.trim(), i + 1)? {
+                assignments.push(assignment);
+            }
+            continue;
+        }
+
+        // X WEIGHT directive.
         if let Some(rest) = trimmed.strip_prefix("X WEIGHT") {
             if rest.is_empty() || !rest.starts_with(|c: char| c.is_ascii_whitespace()) {
                 continue;
             }
             let rest = rest.trim();
-            // Skip non-directive WEIGHT commands (e.g. "X WEIGHT UNWEIGHT").
             if rest.eq_ignore_ascii_case("UNWEIGHT") {
                 continue;
             }
-            return parse_weight_line(rest, i + 1);
+            let directive = parse_weight_line(rest, i + 1)?;
+            passes.push(QualifiedWeightPass {
+                qualifier: current_qual.clone(),
+                directive,
+            });
         }
     }
-    Err(ParseEError {
-        line_num: block.start + 1,
-        message: format!("no X WEIGHT directive found in TABLE {}", block.id),
-    })
+
+    if passes.is_empty() {
+        return Err(ParseEError {
+            line_num: block.start + 1,
+            message: format!("no X WEIGHT directive found in TABLE {}", block.id),
+        });
+    }
+    Ok((passes, assignments))
+}
+
+/// Parse `X IF(condition) 1!col=value`. Returns `None` for forms we don't
+/// handle (e.g. missing parens or unexpected syntax).
+fn parse_x_if(s: &str, line_num: usize) -> Result<Option<ColumnAssignment>, ParseEError> {
+    // Expect: (condition) col_spec=value
+    let s = s.strip_prefix('(').unwrap_or(s);
+    let Some((cond_str, rest)) = s.split_once(')') else {
+        return Ok(None);
+    };
+    let cond_str = cond_str.trim();
+    if cond_str.is_empty() {
+        return Ok(None);
+    }
+
+    let condition = UncleExpr::parse(cond_str).map_err(|e| ParseEError {
+        line_num,
+        message: format!("X IF condition parse error: {e}"),
+    })?;
+
+    // rest: " 1!2316=1" or " 2316=1"
+    let rest = rest.trim();
+    let rest = rest.strip_prefix("1!").unwrap_or(rest);
+    let Some((col_str, value)) = rest.split_once('=') else {
+        return Ok(None);
+    };
+    let col: usize = col_str.trim().parse().map_err(|_| ParseEError {
+        line_num,
+        message: format!("X IF: invalid column number '{col_str}'"),
+    })?;
+
+    Ok(Some(ColumnAssignment {
+        condition,
+        col,
+        value: value.trim().to_string(),
+    }))
 }
 
 /// Parse the tokens after `X WEIGHT`. Supported forms:
@@ -396,7 +528,9 @@ R SOMETHING;1!50-1;VALUE 1.0
     #[test]
     fn parse_control_table_and_weight_tables() {
         let spec = parse_e_content(SAMPLE_E, 600).unwrap();
-        let d = &spec.directive;
+        assert_eq!(spec.passes.len(), 1);
+        assert!(spec.passes[0].qualifier.is_none());
+        let d = spec.directive();
         assert_eq!(d.table_ids, vec![601, 602]);
         assert_eq!(d.col_start, 2000);
         assert_eq!(d.col_end, 2006);
@@ -431,7 +565,7 @@ R A;1!10-1;VALUE .5
 R B;1!10-2;VALUE .5
 ";
         let spec = parse_e_content(content, 600).unwrap();
-        assert_eq!(spec.directive.total, Some(800.0));
+        assert_eq!(spec.directive().total, Some(800.0));
     }
 
     #[test]
@@ -479,7 +613,7 @@ R A;1!10-1;VALUE .5
 R B;1!10-2;VALUE .5
 ";
         let spec = parse_e_content(content, 600).unwrap();
-        assert_eq!(spec.directive.table_ids, vec![601]);
+        assert_eq!(spec.directive().table_ids, vec![601]);
         assert_eq!(spec.tables.len(), 1);
     }
 
@@ -488,7 +622,6 @@ R B;1!10-2;VALUE .5
         let content = "\
 TABLE 600
 X WEIGHT 601 603 TH 606 608 TH 610 TO 1!5060:5066 4
-*
 TABLE 601
 R A;1!10-1;VALUE .5
 R B;1!10-2;VALUE .5
@@ -522,7 +655,7 @@ R A;1!17-1;VALUE .5
 R B;1!17-2;VALUE .5
 ";
         let spec = parse_e_content(content, 600).unwrap();
-        assert_eq!(spec.directive.table_ids, vec![601, 603, 604, 605, 606, 608, 609, 610]);
+        assert_eq!(spec.directive().table_ids, vec![601, 603, 604, 605, 606, 608, 609, 610]);
         assert_eq!(spec.tables.len(), 8);
     }
 
@@ -571,7 +704,7 @@ R A;1!18-1;VALUE .5
 R B;1!18-2;VALUE .5
 ";
         let spec = parse_e_content(content, 600).unwrap();
-        assert_eq!(spec.directive.table_ids, vec![601, 602, 603, 604, 605, 606, 607, 608, 609]);
+        assert_eq!(spec.directive().table_ids, vec![601, 602, 603, 604, 605, 606, 607, 608, 609]);
         assert_eq!(spec.tables.len(), 9);
     }
 
@@ -589,5 +722,124 @@ R B;1!18-2;VALUE .5
         } else {
             panic!("expected Uncle condition");
         }
+    }
+
+    #[test]
+    fn parse_split_sample_with_x_set_qual() {
+        let content = "\
+TABLE 600
+X ENTER NOADD
+X SET QUAL(1!87-1)
+X WEIGHT 601 TH 602 TO 1!2000:2006 4 OFF TOTAL 2000
+X SET QUAL(1!87-2)
+X WEIGHT 601 TH 602 TO 1!2000:2006 4 OFF TOTAL 2000
+*
+TABLE 601
+R MALE;1!43-1;VALUE .48
+R FEMALE;1!43-2;VALUE .52
+*
+TABLE 602
+R YOUNG;1!41-1:3;VALUE .47
+R OLD;1!41-4:7;VALUE .53
+";
+        let spec = parse_e_content(content, 600).unwrap();
+        assert_eq!(spec.passes.len(), 2);
+
+        // First pass: qualifier 1!87-1
+        assert!(spec.passes[0].qualifier.is_some());
+        let q0 = spec.passes[0].qualifier.as_ref().unwrap();
+        let mut record_a = vec![b' '; 90];
+        record_a[86] = b'1'; // col 87 = '1'
+        assert!(q0.evaluate(&String::from_utf8(record_a).unwrap()).unwrap());
+
+        // Second pass: qualifier 1!87-2
+        assert!(spec.passes[1].qualifier.is_some());
+        let q1 = spec.passes[1].qualifier.as_ref().unwrap();
+        let mut record_b = vec![b' '; 90];
+        record_b[86] = b'2'; // col 87 = '2'
+        assert!(q1.evaluate(&String::from_utf8(record_b).unwrap()).unwrap());
+
+        // Both passes share the same tables and directive shape.
+        assert_eq!(spec.passes[0].directive.table_ids, vec![601, 602]);
+        assert_eq!(spec.passes[1].directive.table_ids, vec![601, 602]);
+        assert_eq!(spec.passes[0].directive.total, Some(2000.0));
+        assert_eq!(spec.tables.len(), 2); // deduplicated
+    }
+
+    #[test]
+    fn parse_qual_cleared_by_empty_parens() {
+        let content = "\
+TABLE 600
+X SET QUAL(1!87-1)
+X WEIGHT 601 TO 1!100:106 4 OFF
+X SET QUAL()
+X WEIGHT 601 TO 1!100:106 4 OFF
+*
+TABLE 601
+R A;1!10-1;VALUE .5
+R B;1!10-2;VALUE .5
+";
+        let spec = parse_e_content(content, 600).unwrap();
+        assert_eq!(spec.passes.len(), 2);
+        assert!(spec.passes[0].qualifier.is_some());
+        assert!(spec.passes[1].qualifier.is_none());
+    }
+
+    #[test]
+    fn parse_qual_all_clears_qualifier() {
+        let content = "\
+TABLE 620
+X WEIGHT UNWEIGHT
+X IF(1!70N1) 1!2316=1
+X SET QUAL(1!70-1)
+X WEIGHT 621 TO 1!2410:2416 4 OFF TOTAL 3200
+X SET QUAL(ALL)
+*
+TABLE 621
+R A;1!10-1;VALUE .5
+R B;1!10-2;VALUE .5
+";
+        let spec = parse_e_content(content, 620).unwrap();
+        assert_eq!(spec.passes.len(), 1);
+        assert!(spec.passes[0].qualifier.is_some());
+        assert_eq!(spec.passes[0].directive.total, Some(3200.0));
+
+        // X IF directive should be captured as a column assignment.
+        assert_eq!(spec.assignments.len(), 1);
+        assert_eq!(spec.assignments[0].col, 2316);
+        assert_eq!(spec.assignments[0].value, "1");
+        // Condition should match records where col 70 is NOT code 1.
+        let mut record_not_rv = vec![b' '; 100];
+        record_not_rv[69] = b'2'; // col 70 = '2' (not registered)
+        assert!(spec.assignments[0].condition.evaluate(
+            &String::from_utf8(record_not_rv).unwrap()
+        ).unwrap());
+    }
+
+    #[test]
+    fn parse_split_sample_different_tables() {
+        let content = "\
+TABLE 600
+X SET QUAL(1!87-1)
+X WEIGHT 601 TO 1!100:106 4 OFF TOTAL 500
+X SET QUAL(1!87-2)
+X WEIGHT 602 TO 1!100:106 4 OFF TOTAL 500
+*
+TABLE 601
+R A;1!10-1;VALUE .5
+R B;1!10-2;VALUE .5
+*
+TABLE 602
+R X;1!11-1;VALUE .6
+R Y;1!11-2;VALUE .4
+";
+        let spec = parse_e_content(content, 600).unwrap();
+        assert_eq!(spec.passes.len(), 2);
+        assert_eq!(spec.passes[0].directive.table_ids, vec![601]);
+        assert_eq!(spec.passes[1].directive.table_ids, vec![602]);
+        // Tables deduplicated from union: 601, 602
+        assert_eq!(spec.tables.len(), 2);
+        assert_eq!(spec.tables[0].id, 601);
+        assert_eq!(spec.tables[1].id, 602);
     }
 }

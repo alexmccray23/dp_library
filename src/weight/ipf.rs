@@ -29,6 +29,7 @@ pub struct WeightCategory {
     pub target: f64,
 }
 
+#[derive(Clone)]
 pub enum WeightCondition {
     Cfmc(CfmcLogic),
     Uncle(UncleExpr),
@@ -143,6 +144,117 @@ pub fn compute_weights(
 ) -> Result<Vec<f64>, WeightError> {
     let (survey, targets) = classify(scheme, rfl, data)?;
     rake_classified(&survey, &targets, &scheme.config.raking)
+}
+
+/// Compute weights for qualified/split-sample designs.
+///
+/// Each pass applies to a different subset of records (determined by evaluating
+/// `pass.qualifier`) and is raked independently with its own tables and TOTAL.
+/// Returns `Option<f64>` per record: `Some(weight)` for records that were
+/// raked, `None` for records that didn't match any qualifier.
+///
+/// **Callers are responsible for ensuring qualifiers are mutually exclusive
+/// when records should receive exactly one weight.** If a record matches
+/// multiple passes, the last matching pass wins.
+///
+/// # Panics
+///
+/// Panics if a pass references a table ID not present in `tables`.
+///
+/// # Errors
+///
+/// Returns `WeightError` if qualifier evaluation, classification, or raking
+/// fails for any pass.
+pub fn compute_weights_multi_pass(
+    passes: &[crate::weight::QualifiedWeightPass],
+    tables: &[WeightTable],
+    config: &WeightConfig,
+    rfl: Option<&RflFile>,
+    data: &[String],
+) -> Result<Vec<Option<f64>>, WeightError> {
+    let mut weights: Vec<Option<f64>> = vec![None; data.len()];
+
+    for pass in passes {
+        // Determine which records qualify for this pass.
+        let qualifying: Vec<usize> = if let Some(ref qual) = pass.qualifier {
+            data.iter()
+                .enumerate()
+                .filter_map(|(i, line)| {
+                    match qual.evaluate(line) {
+                        Ok(true) => Some(Ok(i)),
+                        Ok(false) => None,
+                        Err(e) => Some(Err(WeightError::ConditionEval {
+                            table_id: 0,
+                            row_label: "X SET QUAL".to_string(),
+                            record: i,
+                            source: e,
+                        })),
+                    }
+                })
+                .collect::<Result<Vec<_>, _>>()?
+        } else {
+            (0..data.len()).collect()
+        };
+
+        if qualifying.is_empty() {
+            continue;
+        }
+
+        // Extract the subset of data for this pass.
+        let subset: Vec<String> = qualifying.iter().map(|&i| data[i].clone()).collect();
+
+        let normalization = pass.directive.total.map_or(
+            ipf_survey::Normalization::SumToN,
+            ipf_survey::Normalization::SumTo,
+        );
+
+        let pass_config = WeightConfig {
+            raking: RakingConfig {
+                normalization,
+                ..config.raking.clone()
+            },
+            base_weight_field: config.base_weight_field.clone(),
+            target_tolerance: config.target_tolerance,
+        };
+
+        // Build a temporary scheme from this pass's referenced tables.
+        let scheme = WeightScheme {
+            tables: pass
+                .directive
+                .table_ids
+                .iter()
+                .map(|&id| {
+                    let t = tables
+                        .iter()
+                        .find(|t| t.id == id)
+                        .expect("table ID referenced by pass not found in tables list");
+                    WeightTable {
+                        id: t.id,
+                        label: t.label.clone(),
+                        categories: t
+                            .categories
+                            .iter()
+                            .map(|c| WeightCategory {
+                                label: c.label.clone(),
+                                condition: c.condition.clone(),
+                                target: c.target,
+                            })
+                            .collect(),
+                    }
+                })
+                .collect(),
+            config: pass_config,
+        };
+
+        let pass_weights = compute_weights(&scheme, rfl, &subset)?;
+
+        // Merge back into the main weights vector.
+        for (j, &record_idx) in qualifying.iter().enumerate() {
+            weights[record_idx] = Some(pass_weights[j]);
+        }
+    }
+
+    Ok(weights)
 }
 
 /// Classify records against a scheme.

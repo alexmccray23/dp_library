@@ -5,7 +5,8 @@ use std::process;
 
 use clap::Parser;
 use dp_library::weight::{
-    WeightConfig, WeightScheme, classify, parse_e_file, rake_classified_full,
+    WeightConfig, WeightScheme, classify, compute_weights_multi_pass, parse_e_file,
+    rake_classified_full,
 };
 use dp_library::RflFile;
 use ipf_survey::RakingConfig;
@@ -148,16 +149,27 @@ fn main() {
         process::exit(1);
     });
 
-    let d = &spec.directive;
-    let field_width = d.field_width();
-    let table_ids_str: Vec<String> = d.table_ids.iter().map(|id| id.to_string()).collect();
-    eprintln!("\nWeight tables: {}", table_ids_str.join(", "));
-    eprintln!(
-        "Output location: cols {}-{} ({} decimal places, {} chars wide)",
-        d.col_start, d.col_end, d.decimal_width, field_width
-    );
-    if let Some(total) = d.total {
-        eprintln!("TOTAL scaling: {total}");
+    let has_qualifiers = spec.passes.iter().any(|p| p.qualifier.is_some());
+
+    // Print pass/directive summary.
+    for (pi, pass) in spec.passes.iter().enumerate() {
+        let d = &pass.directive;
+        let table_ids_str: Vec<String> = d.table_ids.iter().map(std::string::ToString::to_string).collect();
+        if has_qualifiers {
+            if let Some(ref qual) = pass.qualifier {
+                eprintln!("\nPass {}: qualifier = {qual:?}", pi + 1);
+            } else {
+                eprintln!("\nPass {} (unqualified):", pi + 1);
+            }
+        }
+        eprintln!("\nWeight tables: {}", table_ids_str.join(", "));
+        eprintln!(
+            "Output location: cols {}-{} ({} decimal places, {} chars wide)",
+            d.col_start, d.col_end, d.decimal_width, d.field_width()
+        );
+        if let Some(total) = d.total {
+            eprintln!("TOTAL scaling: {total}");
+        }
     }
 
     // Print table summary.
@@ -181,59 +193,103 @@ fn main() {
     let data = read_data_lines(&data_file);
     eprintln!("Records: {}", data.len());
 
-    // Build scheme and compute weights.
-    let normalization = match d.total {
-        Some(total) => ipf_survey::Normalization::SumTo(total),
-        None => ipf_survey::Normalization::SumToN,
-    };
-    let scheme = WeightScheme {
-        tables: spec.tables,
-        config: WeightConfig {
-            raking: RakingConfig {
-                convergence: ipf_survey::ConvergenceConfig {
-                    max_iterations: 40,
-                    tolerance: 1e-6,
-                    ..Default::default()
-                },
-                normalization,
-                ..Default::default()
-            },
-            base_weight_field: None,
-            target_tolerance: Some(0.01),
-        },
-    };
+    // Capture output location from the first pass (all passes should target the
+    // same output columns in split-sample designs).
+    let col_start = spec.passes[0].directive.col_start;
+    let col_end = spec.passes[0].directive.col_end;
+    let decimal_width = spec.passes[0].directive.decimal_width;
+    let field_width = spec.passes[0].directive.field_width();
 
-    let (survey, targets) = classify(&scheme, rfl.as_ref(), &data).unwrap_or_else(|e| {
-        eprintln!("\nClassification error: {e}");
-        process::exit(1);
-    });
-
-    let result = rake_classified_full(&survey, &targets, &scheme.config.raking).unwrap_or_else(|e| {
-        eprintln!("\nRaking error: {e}");
-        process::exit(1);
-    });
-
-    if result.convergence.converged {
-        eprintln!(
-            "Raking converged in {} iterations (residual: {:.2e})",
-            result.convergence.iterations, result.convergence.final_residual
-        );
-    } else {
-        eprintln!(
-            "Warning: raking did not converge after {} iterations (residual: {:.2e})",
-            result.convergence.iterations, result.convergence.final_residual
-        );
+    if !spec.assignments.is_empty() {
+        eprintln!("\nColumn assignments:");
+        for a in &spec.assignments {
+            eprintln!("  X IF({:?}) col {}={}", a.condition, a.col, a.value);
+        }
     }
 
-    let weights = result.weights;
+    // Move assignments out so spec.tables can be moved into scheme later.
+    let assignments = spec.assignments;
 
-    // Weight statistics.
-    let sum: f64 = weights.iter().sum();
-    let min = weights.iter().copied().fold(f64::INFINITY, f64::min);
-    let max = weights.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    let base_config = WeightConfig {
+        raking: RakingConfig {
+            convergence: ipf_survey::ConvergenceConfig {
+                max_iterations: 40,
+                tolerance: 1e-6,
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+        base_weight_field: None,
+        target_tolerance: Some(0.01),
+    };
+
+    // weights: Option<f64> per record. None = not qualified (don't punch weight).
+    let weights: Vec<Option<f64>> = if has_qualifiers {
+        // Qualified weighting: each pass weights its qualifying subset independently.
+        eprintln!("\nRunning {} qualified pass(es)...", spec.passes.len());
+        compute_weights_multi_pass(
+            &spec.passes,
+            &spec.tables,
+            &base_config,
+            rfl.as_ref(),
+            &data,
+        )
+        .unwrap_or_else(|e| {
+            eprintln!("\nWeighting error: {e}");
+            process::exit(1);
+        })
+    } else {
+        // Single-pass: use the detailed classify + rake_full path for diagnostics.
+        let normalization = spec.passes[0].directive.total.map_or(
+            ipf_survey::Normalization::SumToN,
+            ipf_survey::Normalization::SumTo,
+        );
+        let scheme = WeightScheme {
+            tables: spec.tables,
+            config: WeightConfig {
+                raking: RakingConfig {
+                    normalization,
+                    ..base_config.raking
+                },
+                ..base_config
+            },
+        };
+
+        let (survey, targets) = classify(&scheme, rfl.as_ref(), &data).unwrap_or_else(|e| {
+            eprintln!("\nClassification error: {e}");
+            process::exit(1);
+        });
+
+        let result =
+            rake_classified_full(&survey, &targets, &scheme.config.raking).unwrap_or_else(|e| {
+                eprintln!("\nRaking error: {e}");
+                process::exit(1);
+            });
+
+        if result.convergence.converged {
+            eprintln!(
+                "Raking converged in {} iterations (residual: {:.2e})",
+                result.convergence.iterations, result.convergence.final_residual
+            );
+        } else {
+            eprintln!(
+                "Warning: raking did not converge after {} iterations (residual: {:.2e})",
+                result.convergence.iterations, result.convergence.final_residual
+            );
+        }
+
+        result.weights.into_iter().map(Some).collect()
+    };
+
+    // Weight statistics (only for raked records).
+    let raked: Vec<f64> = weights.iter().filter_map(|w| *w).collect();
+    let sum: f64 = raked.iter().sum();
+    let min = raked.iter().copied().fold(f64::INFINITY, f64::min);
+    let max = raked.iter().copied().fold(f64::NEG_INFINITY, f64::max);
     #[allow(clippy::cast_precision_loss)]
-    let mean = sum / weights.len() as f64;
-    eprintln!("\nWeight range: {min:.4} - {max:.4}");
+    let mean = sum / raked.len() as f64;
+    eprintln!("\nWeighted records: {} / {}", raked.len(), data.len());
+    eprintln!("Weight range: {min:.4} - {max:.4}");
     eprintln!("Weight mean:  {mean:.4}");
     eprintln!("Weight sum:   {sum:.2}");
 
@@ -245,13 +301,33 @@ fn main() {
     let mut writer = BufWriter::new(out);
 
     for (line, weight) in data.iter().zip(weights.iter()) {
-        let weight_str = format_weight(*weight, field_width, d.decimal_width);
-        if weight_str.len() > field_width {
-            eprintln!(
-                "Warning: formatted weight '{weight_str}' exceeds field width {field_width}"
-            );
+        // Only punch the weight field for records that were raked.
+        let mut output_line = weight.map_or_else(
+            || line.clone(),
+            |w| {
+                let weight_str = format_weight(w, field_width, decimal_width);
+                if weight_str.len() > field_width {
+                    eprintln!(
+                        "Warning: formatted weight '{weight_str}' exceeds field width {field_width}"
+                    );
+                }
+                punch_weight(line, &weight_str, col_start, col_end)
+            },
+        );
+
+        // Apply X IF column assignments (runs after raking, so assignments
+        // are not overwritten by the weight punch).
+        for a in &assignments {
+            if a.condition.evaluate(&output_line).unwrap_or(false) {
+                let idx = a.col - 1; // 1-based → 0-based
+                let end = idx + a.value.len();
+                if output_line.len() < end {
+                    output_line.extend(std::iter::repeat_n(' ', end - output_line.len()));
+                }
+                output_line.replace_range(idx..end, &a.value);
+            }
         }
-        let output_line = punch_weight(line, &weight_str, d.col_start, d.col_end);
+
         writeln!(writer, "{output_line}").unwrap_or_else(|e| {
             eprintln!("Error writing output: {e}");
             process::exit(1);

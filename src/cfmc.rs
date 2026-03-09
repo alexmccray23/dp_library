@@ -46,7 +46,7 @@ pub enum CfmcNode {
     },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CfmcLogic {
     root: CfmcNode,
 }
