@@ -185,7 +185,13 @@ fn index_table_blocks(lines: &[&str]) -> Vec<TableBlock> {
             while i < lines.len() && parse_table_line(lines[i]).is_none() {
                 i += 1;
             }
-            blocks.push(TableBlock { id, start, end: i });
+            // If a table ID appears more than once, keep the last definition
+            // (matches Uncle's behavior where later definitions override earlier ones).
+            if let Some(pos) = blocks.iter().position(|b: &TableBlock| b.id == id) {
+                blocks[pos] = TableBlock { id, start, end: i };
+            } else {
+                blocks.push(TableBlock { id, start, end: i });
+            }
         } else {
             i += 1;
         }
@@ -814,6 +820,40 @@ R B;1!10-2;VALUE .5
         assert!(spec.assignments[0].condition.evaluate(
             &String::from_utf8(record_not_rv).unwrap()
         ).unwrap());
+    }
+
+    #[test]
+    fn duplicate_table_uses_last_definition() {
+        let content = "\
+TABLE 600
+X WEIGHT 601 TH 602 TO 1!2000:2006 4 OFF
+*
+TABLE 601
+R MALE;1!43-1;VALUE .48
+R FEMALE//OTHER;1!43-2:3;VALUE .52
+*
+TABLE 602
+R OLD FIRST;1!41-1;VALUE .30
+R OLD SECOND;1!41-2;VALUE .70
+*
+TABLE 603
+R REGISTERED;1!70-1;VALUE .80
+R NOT REGISTERED;1!70-2:3;VALUE .20
+*
+TABLE 602
+R NEW FIRST;1!41-1;VALUE .65
+R NEW SECOND;1!41-2;VALUE .35
+";
+        let spec = parse_e_content(content, 600).unwrap();
+        assert_eq!(spec.tables.len(), 2);
+
+        // TABLE 602 should use the second (last) definition.
+        let t602 = spec.tables.iter().find(|t| t.id == 602).unwrap();
+        assert_eq!(t602.categories.len(), 2);
+        assert_eq!(t602.categories[0].label, "NEW FIRST");
+        assert!((t602.categories[0].target - 0.65).abs() < 1e-9);
+        assert_eq!(t602.categories[1].label, "NEW SECOND");
+        assert!((t602.categories[1].target - 0.35).abs() < 1e-9);
     }
 
     #[test]
