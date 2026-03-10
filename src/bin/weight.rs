@@ -213,8 +213,8 @@ fn main() {
     let base_config = WeightConfig {
         raking: RakingConfig {
             convergence: ipf_survey::ConvergenceConfig {
-                max_iterations: 40,
-                tolerance: 1e-6,
+                max_iterations: 25,
+                tolerance: 1e-7,
                 ..Default::default()
             },
             ..Default::default()

@@ -286,7 +286,7 @@ fn extract_weight_passes(
 fn parse_x_if(s: &str, line_num: usize) -> Result<Option<ColumnAssignment>, ParseEError> {
     // Expect: (condition) col_spec=value
     let s = s.strip_prefix('(').unwrap_or(s);
-    let Some((cond_str, rest)) = s.split_once(')') else {
+    let Some((cond_str, rest)) = s.rsplit_once(')') else {
         return Ok(None);
     };
     let cond_str = cond_str.trim();
