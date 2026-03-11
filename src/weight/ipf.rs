@@ -1,6 +1,9 @@
 use std::fmt;
 
-use ipf_survey::{CodedSurvey, PopulationTargets, RakingConfig, RakingError, RakingResult, Variable, ValidatedTargets, rake};
+use ipf_survey::{
+    CodedSurvey, PopulationTargets, RakingConfig, RakingError, RakingResult, ValidatedTargets,
+    Variable, rake,
+};
 
 use ahash::AHashMap;
 
@@ -51,9 +54,8 @@ impl WeightCondition {
     ) -> Result<bool, String> {
         match self {
             Self::Cfmc(logic) => {
-                let questions = questions.ok_or(
-                    "RFL layout file is required to evaluate CFMC conditions"
-                )?;
+                let questions =
+                    questions.ok_or("RFL layout file is required to evaluate CFMC conditions")?;
                 logic.evaluate(questions, record)
             }
             Self::Uncle(expr) => expr.evaluate(record),
@@ -97,36 +99,56 @@ pub enum WeightError {
     },
 
     /// Base weight field not found in RFL or value couldn't be parsed.
-    BaseWeightField { field: String, record: usize, detail: String },
+    BaseWeightField {
+        field: String,
+        record: usize,
+        detail: String,
+    },
 
     /// Target values don't sum consistently across tables, or other target problem.
     TargetMismatch { source: RakingError },
 
     /// Raking did not converge or another raking-layer failure.
     RakingFailed { source: RakingError },
+
+    /// A weight pass references a table ID that doesn't exist.
+    MissingTable { table_id: u16 },
 }
 
 impl fmt::Display for WeightError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ConditionEval { table_id, row_label, record, source } => write!(
+            Self::ConditionEval {
+                table_id,
+                row_label,
+                record,
+                source,
+            } => write!(
                 f,
                 "table {table_id} row \"{row_label}\" record {record}: condition eval error: {source}"
             ),
             Self::Unclassified { table_id, record } => {
                 write!(f, "table {table_id} record {record}: no category matched")
             }
-            Self::MultipleMatches { table_id, record, matched } => write!(
+            Self::MultipleMatches {
+                table_id,
+                record,
+                matched,
+            } => write!(
                 f,
                 "table {table_id} record {record}: multiple categories matched: {}",
                 matched.join(", ")
             ),
-            Self::BaseWeightField { field, record, detail } => write!(
-                f,
-                "base weight field \"{field}\" record {record}: {detail}"
-            ),
+            Self::BaseWeightField {
+                field,
+                record,
+                detail,
+            } => write!(f, "base weight field \"{field}\" record {record}: {detail}"),
             Self::TargetMismatch { source } => write!(f, "target validation failed: {source}"),
             Self::RakingFailed { source } => write!(f, "raking failed: {source}"),
+            Self::MissingTable { table_id } => {
+                write!(f, "weight pass references unknown table ID {table_id}")
+            }
         }
     }
 }
@@ -148,7 +170,7 @@ impl std::error::Error for WeightError {
 pub fn compute_weights(
     scheme: &WeightScheme,
     rfl: Option<&RflFile>,
-    data: &[String],
+    data: &[impl AsRef<str>],
 ) -> Result<Vec<f64>, WeightError> {
     let (survey, targets) = classify(scheme, rfl, data)?;
     rake_classified(&survey, &targets, &scheme.config.raking)
@@ -165,20 +187,16 @@ pub fn compute_weights(
 /// when records should receive exactly one weight.** If a record matches
 /// multiple passes, the last matching pass wins.
 ///
-/// # Panics
-///
-/// Panics if a pass references a table ID not present in `tables`.
-///
 /// # Errors
 ///
-/// Returns `WeightError` if qualifier evaluation, classification, or raking
-/// fails for any pass.
+/// Returns `WeightError` if qualifier evaluation, classification, raking,
+/// or table lookup fails for any pass.
 pub fn compute_weights_multi_pass(
     passes: &[crate::weight::QualifiedWeightPass],
     tables: &[WeightTable],
     config: &WeightConfig,
     rfl: Option<&RflFile>,
-    data: &[String],
+    data: &[impl AsRef<str>],
 ) -> Result<MultiPassResult, WeightError> {
     let mut weights: Vec<Option<f64>> = vec![None; data.len()];
     let mut pass_results: Vec<RakingResult> = Vec::new();
@@ -188,17 +206,15 @@ pub fn compute_weights_multi_pass(
         let qualifying: Vec<usize> = if let Some(ref qual) = pass.qualifier {
             data.iter()
                 .enumerate()
-                .filter_map(|(i, line)| {
-                    match qual.evaluate(line) {
-                        Ok(true) => Some(Ok(i)),
-                        Ok(false) => None,
-                        Err(e) => Some(Err(WeightError::ConditionEval {
-                            table_id: 0,
-                            row_label: "X SET QUAL".to_string(),
-                            record: i,
-                            source: e,
-                        })),
-                    }
+                .filter_map(|(i, line)| match qual.evaluate(line.as_ref()) {
+                    Ok(true) => Some(Ok(i)),
+                    Ok(false) => None,
+                    Err(e) => Some(Err(WeightError::ConditionEval {
+                        table_id: 0,
+                        row_label: "X SET QUAL".to_string(),
+                        record: i,
+                        source: e,
+                    })),
                 })
                 .collect::<Result<Vec<_>, _>>()?
         } else {
@@ -209,8 +225,8 @@ pub fn compute_weights_multi_pass(
             continue;
         }
 
-        // Extract the subset of data for this pass.
-        let subset: Vec<String> = qualifying.iter().map(|&i| data[i].clone()).collect();
+        // Extract the subset of data for this pass (borrow, no clone).
+        let subset: Vec<&str> = qualifying.iter().map(|&i| data[i].as_ref()).collect();
 
         let normalization = pass.directive.total.map_or(
             ipf_survey::Normalization::SumToN,
@@ -236,8 +252,8 @@ pub fn compute_weights_multi_pass(
                     let t = tables
                         .iter()
                         .find(|t| t.id == id)
-                        .expect("table ID referenced by pass not found in tables list");
-                    WeightTable {
+                        .ok_or(WeightError::MissingTable { table_id: id })?;
+                    Ok(WeightTable {
                         id: t.id,
                         label: t.label.clone(),
                         categories: t
@@ -249,9 +265,9 @@ pub fn compute_weights_multi_pass(
                                 target: c.target,
                             })
                             .collect(),
-                    }
+                    })
                 })
-                .collect(),
+                .collect::<Result<Vec<_>, _>>()?,
             config: pass_config,
         };
 
@@ -276,7 +292,7 @@ pub fn compute_weights_multi_pass(
 pub fn classify(
     scheme: &WeightScheme,
     rfl: Option<&RflFile>,
-    data: &[String],
+    data: &[impl AsRef<str>],
 ) -> Result<(CodedSurvey, ValidatedTargets), WeightError> {
     let n_records = data.len();
     let n_tables = scheme.tables.len();
@@ -291,22 +307,25 @@ pub fn classify(
                 record: 0,
                 detail: "RFL layout file is required for base_weight_field".to_string(),
             })?;
-            let question = rfl.get_question(field).ok_or_else(|| WeightError::BaseWeightField {
-                field: field.clone(),
-                record: 0,
-                detail: format!("question \"{field}\" not found in RFL"),
-            })?;
+            let question = rfl
+                .get_question(field)
+                .ok_or_else(|| WeightError::BaseWeightField {
+                    field: field.clone(),
+                    record: 0,
+                    detail: format!("question \"{field}\" not found in RFL"),
+                })?;
             let weights: Result<Vec<f64>, WeightError> = data
                 .iter()
                 .enumerate()
                 .map(|(r, line)| {
-                    let responses = question.extract_responses(line);
+                    let responses = question.extract_responses(line.as_ref());
                     let raw = responses.first().map_or("", |s| s.trim());
-                    raw.parse::<f64>().map_err(|_| WeightError::BaseWeightField {
-                        field: field.clone(),
-                        record: r,
-                        detail: format!("could not parse \"{raw}\" as f64"),
-                    })
+                    raw.parse::<f64>()
+                        .map_err(|_| WeightError::BaseWeightField {
+                            field: field.clone(),
+                            record: r,
+                            detail: format!("could not parse \"{raw}\" as f64"),
+                        })
                 })
                 .collect();
             Some(weights?)
@@ -317,19 +336,19 @@ pub fn classify(
     let mut codes = vec![0usize; n_records * n_tables];
 
     for (r, line) in data.iter().enumerate() {
+        let line = line.as_ref();
         for (t, table) in scheme.tables.iter().enumerate() {
             let mut matched_indices: Vec<usize> = Vec::new();
 
             for (c, category) in table.categories.iter().enumerate() {
-                let hit = category
-                    .condition
-                    .evaluate(questions, line)
-                    .map_err(|e| WeightError::ConditionEval {
+                let hit = category.condition.evaluate(questions, line).map_err(|e| {
+                    WeightError::ConditionEval {
                         table_id: table.id,
                         row_label: category.label.clone(),
                         record: r,
                         source: e,
-                    })?;
+                    }
+                })?;
                 if hit {
                     matched_indices.push(c);
                 }
@@ -373,20 +392,21 @@ pub fn classify(
 
     // Construct CodedSurvey.
     let survey = match base_weights {
-        Some(bw) => {
-            CodedSurvey::from_flat_codes_weighted(variables, codes, n_records, bw)
-        }
+        Some(bw) => CodedSurvey::from_flat_codes_weighted(variables, codes, n_records, bw),
         None => CodedSurvey::from_flat_codes(variables, codes, n_records),
     }
     .map_err(|e| WeightError::RakingFailed { source: e })?;
 
     // Build and validate population targets.
-    let pt = scheme.tables.iter().fold(PopulationTargets::new(), |acc, table| {
-        acc.add(
-            &format!("TABLE_{}", table.id),
-            table.categories.iter().map(|c| c.target).collect(),
-        )
-    });
+    let pt = scheme
+        .tables
+        .iter()
+        .fold(PopulationTargets::new(), |acc, table| {
+            acc.add(
+                &format!("TABLE_{}", table.id),
+                table.categories.iter().map(|c| c.target).collect(),
+            )
+        });
     let targets = match scheme.config.target_tolerance {
         Some(tol) => pt.validate_with_tolerance(&survey, tol),
         None => pt.validate(&survey),
@@ -511,12 +531,16 @@ mod tests {
                     categories: vec![
                         WeightCategory {
                             label: "MALE".to_string(),
-                            condition: WeightCondition::Cfmc(CfmcLogic::parse("GENDER(1)").unwrap()),
+                            condition: WeightCondition::Cfmc(
+                                CfmcLogic::parse("GENDER(1)").unwrap(),
+                            ),
                             target: 0.48,
                         },
                         WeightCategory {
                             label: "FEMALE/OTHER".to_string(),
-                            condition: WeightCondition::Cfmc(CfmcLogic::parse("GENDER(2,3)").unwrap()),
+                            condition: WeightCondition::Cfmc(
+                                CfmcLogic::parse("GENDER(2,3)").unwrap(),
+                            ),
                             target: 0.52,
                         },
                     ],
@@ -527,17 +551,23 @@ mod tests {
                     categories: vec![
                         WeightCategory {
                             label: "18-44".to_string(),
-                            condition: WeightCondition::Cfmc(CfmcLogic::parse("AGEGROUP(1,2,3)").unwrap()),
+                            condition: WeightCondition::Cfmc(
+                                CfmcLogic::parse("AGEGROUP(1,2,3)").unwrap(),
+                            ),
                             target: 0.47,
                         },
                         WeightCategory {
                             label: "65+".to_string(),
-                            condition: WeightCondition::Cfmc(CfmcLogic::parse("AGEGROUP(6)").unwrap()),
+                            condition: WeightCondition::Cfmc(
+                                CfmcLogic::parse("AGEGROUP(6)").unwrap(),
+                            ),
                             target: 0.20,
                         },
                         WeightCategory {
                             label: "BALANCE".to_string(),
-                            condition: WeightCondition::Cfmc(CfmcLogic::parse("AGEGROUP(4,5,7)").unwrap()),
+                            condition: WeightCondition::Cfmc(
+                                CfmcLogic::parse("AGEGROUP(4,5,7)").unwrap(),
+                            ),
                             target: 0.33,
                         },
                     ],
@@ -578,7 +608,10 @@ mod tests {
         // Both tables' targets sum to 1.0 → grand total = 1.0.
         let weights = compute_weights(&make_scheme(), Some(&make_rfl()), &make_data()).unwrap();
         let sum: f64 = weights.iter().sum();
-        assert!((sum - 1.0).abs() < 1e-6, "weights sum = {sum}, expected 1.0");
+        assert!(
+            (sum - 1.0).abs() < 1e-6,
+            "weights sum = {sum}, expected 1.0"
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -611,7 +644,13 @@ mod tests {
         let data = vec![make_record('1', ' ')];
         let err = classify(&make_scheme(), Some(&make_rfl()), &data).unwrap_err();
         assert!(
-            matches!(err, WeightError::Unclassified { table_id: 601, record: 0 }),
+            matches!(
+                err,
+                WeightError::Unclassified {
+                    table_id: 601,
+                    record: 0
+                }
+            ),
             "unexpected error: {err}"
         );
     }
@@ -627,23 +666,38 @@ mod tests {
                 categories: vec![
                     WeightCategory {
                         label: "YOUNG".to_string(),
-                        condition: WeightCondition::Cfmc(CfmcLogic::parse("AGEGROUP(1,2,3)").unwrap()),
+                        condition: WeightCondition::Cfmc(
+                            CfmcLogic::parse("AGEGROUP(1,2,3)").unwrap(),
+                        ),
                         target: 0.5,
                     },
                     WeightCategory {
                         label: "OVERLAP".to_string(),
-                        condition: WeightCondition::Cfmc(CfmcLogic::parse("AGEGROUP(1,4,5)").unwrap()),
+                        condition: WeightCondition::Cfmc(
+                            CfmcLogic::parse("AGEGROUP(1,4,5)").unwrap(),
+                        ),
                         target: 0.5,
                     },
                 ],
             }],
-            config: WeightConfig { raking: RakingConfig::default(), base_weight_field: None, target_tolerance: None },
+            config: WeightConfig {
+                raking: RakingConfig::default(),
+                base_weight_field: None,
+                target_tolerance: None,
+            },
         };
 
         let data = vec![make_record('1', '1')];
         let err = classify(&scheme, Some(&rfl), &data).unwrap_err();
         assert!(
-            matches!(err, WeightError::MultipleMatches { table_id: 603, record: 0, .. }),
+            matches!(
+                err,
+                WeightError::MultipleMatches {
+                    table_id: 603,
+                    record: 0,
+                    ..
+                }
+            ),
             "unexpected error: {err}"
         );
     }
@@ -660,12 +714,16 @@ mod tests {
                     categories: vec![
                         WeightCategory {
                             label: "MALE".to_string(),
-                            condition: WeightCondition::Cfmc(CfmcLogic::parse("GENDER(1)").unwrap()),
+                            condition: WeightCondition::Cfmc(
+                                CfmcLogic::parse("GENDER(1)").unwrap(),
+                            ),
                             target: 0.48,
                         },
                         WeightCategory {
                             label: "FEMALE/OTHER".to_string(),
-                            condition: WeightCondition::Cfmc(CfmcLogic::parse("GENDER(2,3)").unwrap()),
+                            condition: WeightCondition::Cfmc(
+                                CfmcLogic::parse("GENDER(2,3)").unwrap(),
+                            ),
                             target: 0.52,
                         },
                     ],
@@ -676,23 +734,34 @@ mod tests {
                     categories: vec![
                         WeightCategory {
                             label: "18-44".to_string(),
-                            condition: WeightCondition::Cfmc(CfmcLogic::parse("AGEGROUP(1,2,3)").unwrap()),
+                            condition: WeightCondition::Cfmc(
+                                CfmcLogic::parse("AGEGROUP(1,2,3)").unwrap(),
+                            ),
                             target: 1.0, // sum = 2.0, not 1.0
                         },
                         WeightCategory {
                             label: "45+".to_string(),
-                            condition: WeightCondition::Cfmc(CfmcLogic::parse("AGEGROUP(4,5,6,7)").unwrap()),
+                            condition: WeightCondition::Cfmc(
+                                CfmcLogic::parse("AGEGROUP(4,5,6,7)").unwrap(),
+                            ),
                             target: 1.0,
                         },
                     ],
                 },
             ],
-            config: WeightConfig { raking: RakingConfig::default(), base_weight_field: None, target_tolerance: None },
+            config: WeightConfig {
+                raking: RakingConfig::default(),
+                base_weight_field: None,
+                target_tolerance: None,
+            },
         };
 
         let data = vec![make_record('1', '1'), make_record('4', '2')];
         let err = classify(&scheme, Some(&rfl), &data).unwrap_err();
-        assert!(matches!(err, WeightError::TargetMismatch { .. }), "unexpected error: {err}");
+        assert!(
+            matches!(err, WeightError::TargetMismatch { .. }),
+            "unexpected error: {err}"
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -836,7 +905,10 @@ mod tests {
                 record: 0,
                 source: "question not found".to_string(),
             },
-            WeightError::Unclassified { table_id: 601, record: 5 },
+            WeightError::Unclassified {
+                table_id: 601,
+                record: 5,
+            },
             WeightError::MultipleMatches {
                 table_id: 603,
                 record: 2,
