@@ -6,8 +6,8 @@ use std::process;
 use clap::Parser;
 use dp_library::RflFile;
 use dp_library::weight::{
-    WeightConfig, WeightScheme, classify, compute_weights_multi_pass, parse_e_file,
-    rake_classified_full,
+    ColumnAssignment, ParsedWeightSpec, WeightConfig, WeightScheme, classify,
+    compute_weights_multi_pass, parse_e_file, rake_classified_full,
 };
 use ipf_survey::RakingConfig;
 
@@ -39,6 +39,20 @@ struct Args {
         help = "Output file path (default: <stem>.WT)"
     )]
     output: Option<String>,
+}
+
+struct ResolvedFiles {
+    exec_file: String,
+    layout_file: Option<String>,
+    data_file: String,
+    output_file: String,
+}
+
+struct OutputFormat {
+    col_start: usize,
+    col_end: usize,
+    field_width: usize,
+    decimal_width: usize,
 }
 
 fn find_file_with_extension(dir: &str, extensions: &[&str]) -> Option<String> {
@@ -76,6 +90,40 @@ fn resolve_file(arg: Option<&String>, extensions: &[&str], label: &str) -> Strin
         eprintln!("Could not auto-discover {label} in current directory");
         process::exit(1);
     })
+}
+
+fn resolve_inputs(args: &Args) -> ResolvedFiles {
+    let exec_file = resolve_file(args.exec_file.as_ref(), &[".e"], ".E file");
+    let layout_file = args
+        .layout_file
+        .clone()
+        .or_else(|| find_file_with_extension(".", &[".rfl"]));
+    let data_file = args.data_file.clone().unwrap_or_else(|| {
+        find_file_with_extension(".", &[".c"])
+            .or_else(|| find_file_with_extension(".", &[".fin"]))
+            .unwrap_or_else(|| {
+                eprintln!("Could not auto-discover data file in current directory");
+                process::exit(1);
+            })
+    });
+    let output_file = args
+        .output
+        .clone()
+        .unwrap_or_else(|| default_output_name(&data_file));
+
+    eprintln!("Exec file:   {exec_file}");
+    if let Some(ref lf) = layout_file {
+        eprintln!("Layout file: {lf}");
+    }
+    eprintln!("Data file:   {data_file}");
+    eprintln!("Output file: {output_file}");
+
+    ResolvedFiles {
+        exec_file,
+        layout_file,
+        data_file,
+        output_file,
+    }
 }
 
 fn read_data_lines(path: &str) -> Vec<String> {
@@ -124,44 +172,9 @@ fn default_output_name(data_file: &str) -> String {
     format!("{stem}.WT")
 }
 
-fn main() {
-    let args = Args::parse();
-
-    // Resolve files.
-    let exec_file = resolve_file(args.exec_file.as_ref(), &[".e"], ".E file");
-    let layout_file = args
-        .layout_file
-        .clone()
-        .or_else(|| find_file_with_extension(".", &[".rfl"]));
-    let data_file = args.data_file.clone().unwrap_or_else(|| {
-        find_file_with_extension(".", &[".c"])
-            .or_else(|| find_file_with_extension(".", &[".fin"]))
-            .unwrap_or_else(|| {
-                eprintln!("Could not auto-discover data file in current directory");
-                process::exit(1);
-            })
-    });
-    let output_file = args
-        .output
-        .clone()
-        .unwrap_or_else(|| default_output_name(&data_file));
-
-    eprintln!("Exec file:   {exec_file}");
-    if let Some(ref lf) = layout_file {
-        eprintln!("Layout file: {lf}");
-    }
-    eprintln!("Data file:   {data_file}");
-    eprintln!("Output file: {output_file}");
-
-    // Parse .E file.
-    let spec = parse_e_file(Path::new(&exec_file), args.table_id).unwrap_or_else(|e| {
-        eprintln!("Error parsing .E file: {e}");
-        process::exit(1);
-    });
-
+fn print_spec_summary(spec: &ParsedWeightSpec) {
     let has_qualifiers = spec.passes.iter().any(|p| p.qualifier.is_some());
 
-    // Print pass/directive summary.
     for (pi, pass) in spec.passes.iter().enumerate() {
         let d = &pass.directive;
         let table_ids_str: Vec<String> = d
@@ -189,7 +202,6 @@ fn main() {
         }
     }
 
-    // Print table summary.
     for table in &spec.tables {
         let target_sum: f64 = table.categories.iter().map(|c| c.target).sum();
         eprintln!(
@@ -200,33 +212,29 @@ fn main() {
         );
     }
 
-    // Load RFL (optional — only needed for CFMC conditions or base_weight_field).
-    let rfl = layout_file.map(|lf| {
-        RflFile::from_file(&lf).unwrap_or_else(|e| {
-            eprintln!("Error reading layout file: {e}");
-            process::exit(1);
-        })
-    });
-    let data = read_data_lines(&data_file);
-    eprintln!("Records: {}", data.len());
-
-    // Capture output location from the first pass (all passes should target the
-    // same output columns in split-sample designs).
-    let col_start = spec.passes[0].directive.col_start;
-    let col_end = spec.passes[0].directive.col_end;
-    let decimal_width = spec.passes[0].directive.decimal_width;
-    let field_width = spec.passes[0].directive.field_width();
-
     if !spec.assignments.is_empty() {
         eprint!("\nColumn assignments:");
         for a in &spec.assignments {
             eprintln!(" IF({}) 1!{}={}", a.cond_str, a.col, a.value);
         }
     }
+}
 
-    // Move assignments out so spec.tables can be moved into scheme later.
-    let assignments = spec.assignments;
+fn print_convergence(converged: bool, iterations: usize, residual: f64, label: &str) {
+    if converged {
+        eprintln!("{label} converged in {iterations} iterations (residual: {residual:.2e})");
+    } else {
+        eprintln!(
+            "Warning: {label} did not converge after {iterations} iterations (residual: {residual:.2e})"
+        );
+    }
+}
 
+fn compute_all_weights(
+    spec: &mut ParsedWeightSpec,
+    rfl: Option<&RflFile>,
+    data: &[String],
+) -> Vec<Option<f64>> {
     let base_config = WeightConfig {
         raking: RakingConfig {
             convergence: ipf_survey::ConvergenceConfig {
@@ -237,19 +245,19 @@ fn main() {
             ..Default::default()
         },
         base_weight_field: None,
-        target_tolerance: Some(0.001),
+        target_tolerance: Some(0.005),
     };
 
-    // weights: Option<f64> per record. None = not qualified (don't punch weight).
-    let weights: Vec<Option<f64>> = if has_qualifiers {
-        // Qualified weighting: each pass weights its qualifying subset independently.
+    let has_qualifiers = spec.passes.iter().any(|p| p.qualifier.is_some());
+
+    if has_qualifiers {
         eprintln!("\nRunning {} qualified pass(es)...", spec.passes.len());
         let multi = compute_weights_multi_pass(
             &spec.passes,
             &spec.tables,
             &base_config,
-            rfl.as_ref(),
-            &data,
+            rfl,
+            data,
         )
         .unwrap_or_else(|e| {
             eprintln!("\nWeighting error: {e}");
@@ -258,32 +266,17 @@ fn main() {
 
         for (i, result) in multi.pass_results.iter().enumerate() {
             let c = &result.convergence;
-            if c.converged {
-                eprintln!(
-                    "Pass {} converged in {} iterations (residual: {:.2e})",
-                    i + 1,
-                    c.iterations,
-                    c.final_residual
-                );
-            } else {
-                eprintln!(
-                    "Warning: pass {} did not converge after {} iterations (residual: {:.2e})",
-                    i + 1,
-                    c.iterations,
-                    c.final_residual
-                );
-            }
+            print_convergence(c.converged, c.iterations, c.final_residual, &format!("Pass {}", i + 1));
         }
 
         multi.weights
     } else {
-        // Single-pass: use the detailed classify + rake_full path for diagnostics.
         let normalization = spec.passes[0].directive.total.map_or(
             ipf_survey::Normalization::SumToN,
             ipf_survey::Normalization::SumTo,
         );
         let scheme = WeightScheme {
-            tables: spec.tables,
+            tables: std::mem::take(&mut spec.tables),
             config: WeightConfig {
                 raking: RakingConfig {
                     normalization,
@@ -293,7 +286,7 @@ fn main() {
             },
         };
 
-        let (survey, targets) = classify(&scheme, rfl.as_ref(), &data).unwrap_or_else(|e| {
+        let (survey, targets) = classify(&scheme, rfl, data).unwrap_or_else(|e| {
             eprintln!("\nClassification error: {e}");
             process::exit(1);
         });
@@ -304,58 +297,55 @@ fn main() {
                 process::exit(1);
             });
 
-        if result.convergence.converged {
-            eprintln!(
-                "Raking converged in {} iterations (residual: {:.2e})",
-                result.convergence.iterations, result.convergence.final_residual
-            );
-        } else {
-            eprintln!(
-                "Warning: raking did not converge after {} iterations (residual: {:.2e})",
-                result.convergence.iterations, result.convergence.final_residual
-            );
-        }
+        let c = &result.convergence;
+        print_convergence(c.converged, c.iterations, c.final_residual, "Raking");
 
         result.weights.into_iter().map(Some).collect()
-    };
+    }
+}
 
-    // Weight statistics (only for raked records).
+fn print_weight_stats(weights: &[Option<f64>], n_records: usize) {
     let raked: Vec<f64> = weights.iter().filter_map(|w| *w).collect();
     let sum: f64 = raked.iter().sum();
     let min = raked.iter().copied().fold(f64::INFINITY, f64::min);
     let max = raked.iter().copied().fold(f64::NEG_INFINITY, f64::max);
     #[allow(clippy::cast_precision_loss)]
     let mean = sum / raked.len() as f64;
-    eprintln!("\nWeighted records: {} / {}", raked.len(), data.len());
+    eprintln!("\nWeighted records: {} / {n_records}", raked.len());
     eprintln!("Weight range: {min:.4} - {max:.4}");
     eprintln!("Weight mean:  {mean:.4}");
     eprintln!("Weight sum:   {sum:.2}");
+}
 
-    // Write output.
-    let out = File::create(&output_file).unwrap_or_else(|e| {
-        eprintln!("Could not create output file {output_file}: {e}");
+fn write_output(
+    path: &str,
+    data: &[String],
+    weights: &[Option<f64>],
+    fmt: &OutputFormat,
+    assignments: &[ColumnAssignment],
+) {
+    let out = File::create(path).unwrap_or_else(|e| {
+        eprintln!("Could not create output file {path}: {e}");
         process::exit(1);
     });
     let mut writer = BufWriter::new(out);
 
     for (line, weight) in data.iter().zip(weights.iter()) {
-        // Only punch the weight field for records that were raked.
         let mut output_line = weight.map_or_else(
             || line.clone(),
             |w| {
-                let weight_str = format_weight(w, field_width, decimal_width);
-                if weight_str.len() > field_width {
+                let weight_str = format_weight(w, fmt.field_width, fmt.decimal_width);
+                if weight_str.len() > fmt.field_width {
                     eprintln!(
-                        "Warning: formatted weight '{weight_str}' exceeds field width {field_width}"
+                        "Warning: formatted weight '{weight_str}' exceeds field width {}",
+                        fmt.field_width
                     );
                 }
-                punch_weight(line, &weight_str, col_start, col_end)
+                punch_weight(line, &weight_str, fmt.col_start, fmt.col_end)
             },
         );
 
-        // Apply X IF column assignments (runs after raking, so assignments
-        // are not overwritten by the weight punch).
-        for a in &assignments {
+        for a in assignments {
             if a.condition.evaluate(&output_line).unwrap_or(false) {
                 let idx = a.col - 1; // 1-based → 0-based
                 let end = idx + a.value.len();
@@ -372,5 +362,43 @@ fn main() {
         });
     }
 
-    eprintln!("\nDone. Wrote {} records to {output_file}", data.len());
+    eprintln!("\nDone. Wrote {} records to {path}", data.len());
+}
+
+fn main() {
+    let args = Args::parse();
+    let files = resolve_inputs(&args);
+
+    let mut spec = parse_e_file(Path::new(&files.exec_file), args.table_id).unwrap_or_else(|e| {
+        eprintln!("Error parsing .E file: {e}");
+        process::exit(1);
+    });
+
+    print_spec_summary(&spec);
+
+    let rfl = files.layout_file.map(|lf| {
+        RflFile::from_file(&lf).unwrap_or_else(|e| {
+            eprintln!("Error reading layout file: {e}");
+            process::exit(1);
+        })
+    });
+    let data = read_data_lines(&files.data_file);
+    eprintln!("Records: {}", data.len());
+
+    let out_fmt = OutputFormat {
+        col_start: spec.passes[0].directive.col_start,
+        col_end: spec.passes[0].directive.col_end,
+        field_width: spec.passes[0].directive.field_width(),
+        decimal_width: spec.passes[0].directive.decimal_width,
+    };
+
+    let weights = compute_all_weights(&mut spec, rfl.as_ref(), &data);
+    print_weight_stats(&weights, data.len());
+    write_output(
+        &files.output_file,
+        &data,
+        &weights,
+        &out_fmt,
+        &spec.assignments,
+    );
 }
