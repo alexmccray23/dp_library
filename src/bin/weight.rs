@@ -4,11 +4,11 @@ use std::path::Path;
 use std::process;
 
 use clap::Parser;
+use dp_library::RflFile;
 use dp_library::weight::{
     WeightConfig, WeightScheme, classify, compute_weights_multi_pass, parse_e_file,
     rake_classified_full,
 };
-use dp_library::RflFile;
 use ipf_survey::RakingConfig;
 
 #[derive(Parser, Debug)]
@@ -23,13 +23,21 @@ struct Args {
     #[arg(short = 'e', long = "e-file", help = "Path to .E file")]
     exec_file: Option<String>,
 
-    #[arg(short = 'd', long = "data-file", help = "Path to data file (.fin, .rft, .c)")]
+    #[arg(
+        short = 'd',
+        long = "data-file",
+        help = "Path to data file (.fin, .rft, .c)"
+    )]
     data_file: Option<String>,
 
     #[arg(short = 'l', long = "layout-file", help = "Path to .rfl file")]
     layout_file: Option<String>,
 
-    #[arg(short = 'o', long = "output", help = "Output file path (default: <stem>.WT)")]
+    #[arg(
+        short = 'o',
+        long = "output",
+        help = "Output file path (default: <stem>.WT)"
+    )]
     output: Option<String>,
 }
 
@@ -121,7 +129,9 @@ fn main() {
 
     // Resolve files.
     let exec_file = resolve_file(args.exec_file.as_ref(), &[".e"], ".E file");
-    let layout_file = args.layout_file.clone()
+    let layout_file = args
+        .layout_file
+        .clone()
         .or_else(|| find_file_with_extension(".", &[".rfl"]));
     let data_file = args.data_file.clone().unwrap_or_else(|| {
         find_file_with_extension(".", &[".c"])
@@ -154,10 +164,14 @@ fn main() {
     // Print pass/directive summary.
     for (pi, pass) in spec.passes.iter().enumerate() {
         let d = &pass.directive;
-        let table_ids_str: Vec<String> = d.table_ids.iter().map(std::string::ToString::to_string).collect();
+        let table_ids_str: Vec<String> = d
+            .table_ids
+            .iter()
+            .map(std::string::ToString::to_string)
+            .collect();
         if has_qualifiers {
-            if let Some(ref qual) = pass.qualifier {
-                eprintln!("\nPass {}: qualifier = {qual:?}", pi + 1);
+            if let Some(ref qual) = pass.qual_str {
+                eprintln!("\nPass {}: qualifier = {qual}", pi + 1);
             } else {
                 eprintln!("\nPass {} (unqualified):", pi + 1);
             }
@@ -165,7 +179,10 @@ fn main() {
         eprintln!("\nWeight tables: {}", table_ids_str.join(", "));
         eprintln!(
             "Output location: cols {}-{} ({} decimal places, {} chars wide)",
-            d.col_start, d.col_end, d.decimal_width, d.field_width()
+            d.col_start,
+            d.col_end,
+            d.decimal_width,
+            d.field_width()
         );
         if let Some(total) = d.total {
             eprintln!("TOTAL scaling: {total}");
@@ -201,9 +218,9 @@ fn main() {
     let field_width = spec.passes[0].directive.field_width();
 
     if !spec.assignments.is_empty() {
-        eprintln!("\nColumn assignments:");
+        eprint!("\nColumn assignments:");
         for a in &spec.assignments {
-            eprintln!("  X IF({:?}) col {}={}", a.condition, a.col, a.value);
+            eprintln!(" IF({}) 1!{}={}", a.cond_str, a.col, a.value);
         }
     }
 
@@ -213,21 +230,21 @@ fn main() {
     let base_config = WeightConfig {
         raking: RakingConfig {
             convergence: ipf_survey::ConvergenceConfig {
-                max_iterations: 25,
-                tolerance: 1e-7,
+                max_iterations: 50,
+                tolerance: 1e-10,
                 ..Default::default()
             },
             ..Default::default()
         },
         base_weight_field: None,
-        target_tolerance: Some(0.01),
+        target_tolerance: Some(0.001),
     };
 
     // weights: Option<f64> per record. None = not qualified (don't punch weight).
     let weights: Vec<Option<f64>> = if has_qualifiers {
         // Qualified weighting: each pass weights its qualifying subset independently.
         eprintln!("\nRunning {} qualified pass(es)...", spec.passes.len());
-        compute_weights_multi_pass(
+        let multi = compute_weights_multi_pass(
             &spec.passes,
             &spec.tables,
             &base_config,
@@ -237,7 +254,28 @@ fn main() {
         .unwrap_or_else(|e| {
             eprintln!("\nWeighting error: {e}");
             process::exit(1);
-        })
+        });
+
+        for (i, result) in multi.pass_results.iter().enumerate() {
+            let c = &result.convergence;
+            if c.converged {
+                eprintln!(
+                    "Pass {} converged in {} iterations (residual: {:.2e})",
+                    i + 1,
+                    c.iterations,
+                    c.final_residual
+                );
+            } else {
+                eprintln!(
+                    "Warning: pass {} did not converge after {} iterations (residual: {:.2e})",
+                    i + 1,
+                    c.iterations,
+                    c.final_residual
+                );
+            }
+        }
+
+        multi.weights
     } else {
         // Single-pass: use the detailed classify + rake_full path for diagnostics.
         let normalization = spec.passes[0].directive.total.map_or(

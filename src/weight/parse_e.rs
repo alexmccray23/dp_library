@@ -37,6 +37,7 @@ impl WeightDirective {
 pub struct QualifiedWeightPass {
     pub qualifier: Option<UncleExpr>,
     pub directive: WeightDirective,
+    pub qual_str: Option<String>,
 }
 
 /// A conditional column assignment from an `X IF(condition) col=value` directive.
@@ -46,6 +47,7 @@ pub struct QualifiedWeightPass {
 #[derive(Debug)]
 pub struct ColumnAssignment {
     pub condition: UncleExpr,
+    pub cond_str: String,
     pub col: usize,
     pub value: String,
 }
@@ -90,7 +92,12 @@ impl ParsedWeightSpec {
     /// Panics if the spec has zero or multiple passes.
     #[must_use]
     pub fn directive(&self) -> &WeightDirective {
-        assert_eq!(self.passes.len(), 1, "expected single pass, got {}", self.passes.len());
+        assert_eq!(
+            self.passes.len(),
+            1,
+            "expected single pass, got {}",
+            self.passes.len()
+        );
         &self.passes[0].directive
     }
 }
@@ -121,7 +128,10 @@ pub fn parse_e_file(path: &Path, control_table_id: u16) -> Result<ParsedWeightSp
 }
 
 /// Parse `.E` file content and extract the weight specification.
-pub fn parse_e_content(content: &str, control_table_id: u16) -> Result<ParsedWeightSpec, ParseEError> {
+pub fn parse_e_content(
+    content: &str,
+    control_table_id: u16,
+) -> Result<ParsedWeightSpec, ParseEError> {
     let lines: Vec<&str> = content.lines().collect();
 
     // First pass: index all TABLE blocks by ID → (start_line, end_line).
@@ -156,13 +166,19 @@ pub fn parse_e_content(content: &str, control_table_id: u16) -> Result<ParsedWei
             .find(|b| b.id == table_id)
             .ok_or_else(|| ParseEError {
                 line_num: 0,
-                message: format!("TABLE {table_id} referenced by X WEIGHT but not found in .E file"),
+                message: format!(
+                    "TABLE {table_id} referenced by X WEIGHT but not found in .E file"
+                ),
             })?;
         let table = parse_weight_table(&lines, block)?;
         tables.push(table);
     }
 
-    Ok(ParsedWeightSpec { passes, tables, assignments })
+    Ok(ParsedWeightSpec {
+        passes,
+        tables,
+        assignments,
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -223,6 +239,7 @@ fn extract_weight_passes(
     let mut passes = Vec::new();
     let mut assignments = Vec::new();
     let mut current_qual: Option<UncleExpr> = None;
+    let mut qual_str: Option<String> = None;
 
     for (i, line) in lines.iter().enumerate().take(block.end).skip(block.start) {
         let trimmed = line.trim();
@@ -232,6 +249,8 @@ fn extract_weight_passes(
             let rest = rest.trim();
             if let Some(inner) = rest.strip_prefix('(').and_then(|r| r.strip_suffix(')')) {
                 let inner = inner.trim();
+                qual_str = Some(inner.to_string());
+
                 if inner.is_empty() || inner.eq_ignore_ascii_case("ALL") {
                     current_qual = None;
                 } else {
@@ -249,6 +268,7 @@ fn extract_weight_passes(
 
         // X IF(condition) col=value — conditional column assignment.
         if let Some(rest) = trimmed.strip_prefix("X IF") {
+            qual_str = Some(rest.to_string());
             if let Some(assignment) = parse_x_if(rest.trim(), i + 1)? {
                 assignments.push(assignment);
             }
@@ -268,6 +288,7 @@ fn extract_weight_passes(
             passes.push(QualifiedWeightPass {
                 qualifier: current_qual.clone(),
                 directive,
+                qual_str: qual_str.clone(),
             });
         }
     }
@@ -312,6 +333,7 @@ fn parse_x_if(s: &str, line_num: usize) -> Result<Option<ColumnAssignment>, Pars
 
     Ok(Some(ColumnAssignment {
         condition,
+        cond_str: cond_str.to_string(),
         col,
         value: value.trim().to_string(),
     }))
@@ -430,7 +452,12 @@ fn parse_col_range(s: &str) -> Option<(usize, usize)> {
 fn parse_weight_table(lines: &[&str], block: &TableBlock) -> Result<WeightTable, ParseEError> {
     let mut categories = Vec::new();
 
-    for (i, line) in lines.iter().enumerate().take(block.end).skip(block.start + 1) {
+    for (i, line) in lines
+        .iter()
+        .enumerate()
+        .take(block.end)
+        .skip(block.start + 1)
+    {
         let trimmed = line.trim();
 
         // Skip comments and blank lines.
@@ -473,15 +500,17 @@ fn parse_r_row(s: &str, table_id: u16, line_num: usize) -> Result<WeightCategory
 
     let parts: Vec<&str> = s.splitn(3, ';').collect();
     if parts.len() != 3 {
-        return Err(err(format!("expected 3 semicolon-separated fields, got {}", parts.len())));
+        return Err(err(format!(
+            "expected 3 semicolon-separated fields, got {}",
+            parts.len()
+        )));
     }
 
     let label = parts[0].trim().to_string();
 
     let condition_str = parts[1].trim();
-    let condition = UncleExpr::parse(condition_str).map_err(|e| {
-        err(format!("condition parse error: {e}"))
-    })?;
+    let condition =
+        UncleExpr::parse(condition_str).map_err(|e| err(format!("condition parse error: {e}")))?;
 
     let value_str = parts[2].trim();
     let target = value_str
@@ -661,7 +690,10 @@ R A;1!17-1;VALUE .5
 R B;1!17-2;VALUE .5
 ";
         let spec = parse_e_content(content, 600).unwrap();
-        assert_eq!(spec.directive().table_ids, vec![601, 603, 604, 605, 606, 608, 609, 610]);
+        assert_eq!(
+            spec.directive().table_ids,
+            vec![601, 603, 604, 605, 606, 608, 609, 610]
+        );
         assert_eq!(spec.tables.len(), 8);
     }
 
@@ -710,7 +742,10 @@ R A;1!18-1;VALUE .5
 R B;1!18-2;VALUE .5
 ";
         let spec = parse_e_content(content, 600).unwrap();
-        assert_eq!(spec.directive().table_ids, vec![601, 602, 603, 604, 605, 606, 607, 608, 609]);
+        assert_eq!(
+            spec.directive().table_ids,
+            vec![601, 602, 603, 604, 605, 606, 607, 608, 609]
+        );
         assert_eq!(spec.tables.len(), 9);
     }
 
@@ -817,9 +852,12 @@ R B;1!10-2;VALUE .5
         // Condition should match records where col 70 is NOT code 1.
         let mut record_not_rv = vec![b' '; 100];
         record_not_rv[69] = b'2'; // col 70 = '2' (not registered)
-        assert!(spec.assignments[0].condition.evaluate(
-            &String::from_utf8(record_not_rv).unwrap()
-        ).unwrap());
+        assert!(
+            spec.assignments[0]
+                .condition
+                .evaluate(&String::from_utf8(record_not_rv).unwrap())
+                .unwrap()
+        );
     }
 
     #[test]

@@ -17,6 +17,14 @@ pub struct WeightScheme {
     pub config: WeightConfig,
 }
 
+/// Result from [`compute_weights_multi_pass`], including per-pass convergence.
+pub struct MultiPassResult {
+    /// One weight per record: `Some(w)` if raked, `None` if unqualified.
+    pub weights: Vec<Option<f64>>,
+    /// Convergence report for each pass that was executed.
+    pub pass_results: Vec<RakingResult>,
+}
+
 pub struct WeightTable {
     pub id: u16,
     pub label: Option<String>,
@@ -171,8 +179,9 @@ pub fn compute_weights_multi_pass(
     config: &WeightConfig,
     rfl: Option<&RflFile>,
     data: &[String],
-) -> Result<Vec<Option<f64>>, WeightError> {
+) -> Result<MultiPassResult, WeightError> {
     let mut weights: Vec<Option<f64>> = vec![None; data.len()];
+    let mut pass_results: Vec<RakingResult> = Vec::new();
 
     for pass in passes {
         // Determine which records qualify for this pass.
@@ -246,15 +255,20 @@ pub fn compute_weights_multi_pass(
             config: pass_config,
         };
 
-        let pass_weights = compute_weights(&scheme, rfl, &subset)?;
+        let (survey, targets) = classify(&scheme, rfl, &subset)?;
+        let result = rake_classified_full(&survey, &targets, &scheme.config.raking)?;
 
         // Merge back into the main weights vector.
         for (j, &record_idx) in qualifying.iter().enumerate() {
-            weights[record_idx] = Some(pass_weights[j]);
+            weights[record_idx] = Some(result.weights[j]);
         }
+        pass_results.push(result);
     }
 
-    Ok(weights)
+    Ok(MultiPassResult {
+        weights,
+        pass_results,
+    })
 }
 
 /// Classify records against a scheme.
