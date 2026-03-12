@@ -286,17 +286,17 @@ file with computed weights punched at the designated column location.
 
 ## UNCLE Weight Table Format
 
-Weight tables live inside `.E` files (e.g., `ABA.E`). The control table
+Weight tables live inside `.E` files (e.g., `NAT.E`). The control table
 (TABLE 600) specifies which tables to rake, where to write the weight, and
 optional scaling:
 
 ```
 TABLE 600
 X ENTER NOADD
-X SH 'DEL ABA.C'
-X SET OUT FILE 'ABA.WT' OFF
+X SH 'DEL NAT.C'
+X SET OUT FILE 'NAT.WT' OFF
 X WEIGHT 601 TH 610 TO 1!2000:2006 4 OFF
-X SET OUT FILE 'ABA.WT' CLOSE
+X SET OUT FILE 'NAT.WT' CLOSE
 X PUNCH CHAR
 ```
 
@@ -377,11 +377,11 @@ working directory for files with the expected extension.
 ### Example Usage
 
 ```bash
-# Minimal — auto-discovers ABA.E, p0157.rfl, and data file
+# Minimal — auto-discovers NAT.E, p0157.rfl, and data file
 weight 600
 
 # Explicit paths
-weight 600 -e ABA.E -d ABA.fin -l p0157.rfl -o ABA.WT
+weight 600 -e NAT.E -d NAT.fin -l p0157.rfl -o NAT.WT
 ```
 
 ## Processing Pipeline
@@ -510,7 +510,7 @@ The weight value is written as a right-justified fixed-width decimal string.
 
 Given `col_start=2000`, `col_end=2006`, `decimal_width=4`:
 - Field width = 7 characters
-- Format: `%7.4f` equivalent → e.g., ` 1.0234`, `12.3456`
+- Format: `%07.4f` equivalent → e.g., ` 01.0234`, `12.3456`
 - If the formatted value exceeds the field width, it fills or overflows (error).
 
 ## Output File
@@ -530,7 +530,7 @@ After successful weighting, print a summary to stderr:
 Weight tables: 601-610
 Records: 2847
 Output location: cols 2000-2006 (4 decimal places)
-Output file: ABA.WT
+Output file: NAT.WT
 
 Table 601 (GENDER):        2 categories, targets sum = 1.00
 Table 602 (REGION):        8 categories, targets sum = 1.00

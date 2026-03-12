@@ -451,7 +451,7 @@ mod tests {
     // -----------------------------------------------------------------------
 
     /// Minimal RFL with GENDER at col 43 (width 1) and AGEGROUP at col 41 (width 1).
-    /// Matches the real p0157.rfl layout used in the ABA weight tables.
+    /// Matches the real p0157.rfl layout used in the E file weight tables.
     fn make_rfl() -> RflFile {
         let lines: Vec<String> = [
             "Q GENDER                         FLD  [2994]         --> [43]",
@@ -521,7 +521,7 @@ mod tests {
     }
 
     /// Standard two-table scheme: TABLE_601 (GENDER) + TABLE_603 (AGEGROUP).
-    /// Targets mirror the real ABA proportions and sum to 1.0 across both tables.
+    /// Targets mirror the real E file proportions and sum to 1.0 across both tables.
     fn make_scheme() -> WeightScheme {
         WeightScheme {
             tables: vec![

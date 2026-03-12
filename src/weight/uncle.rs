@@ -1,8 +1,5 @@
 /// UNCLE qualification syntax parser and evaluator.
 ///
-/// Supports the subset of UNCLE syntax used in ABA weight tables 601–610,
-/// plus blank (`$`) checking which is common in production weight schemes.
-///
 /// # Supported syntax
 ///
 /// | Example              | Meaning                                          |
@@ -1064,7 +1061,7 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    // ABA weight table integration scenarios
+    // E file weight table integration scenarios
     // -----------------------------------------------------------------------
 
     #[test]
