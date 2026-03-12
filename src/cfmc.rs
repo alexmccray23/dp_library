@@ -284,6 +284,15 @@ impl CfmcLogic {
         Ok(best_operator.map(|op| (op, best_position)))
     }
 
+    /// Check if `remaining` starts with `keyword` followed by a word boundary
+    /// (non-alphanumeric byte or end of input).
+    fn starts_with_keyword(remaining: &[u8], keyword: &[u8]) -> bool {
+        remaining.starts_with(keyword)
+            && remaining
+                .get(keyword.len())
+                .is_none_or(|b| !b.is_ascii_alphanumeric())
+    }
+
     fn match_operator_at_bytes(bytes: &[u8], pos: usize) -> Option<(CfmcOperator, usize)> {
         if pos >= bytes.len() {
             return None;
@@ -292,14 +301,14 @@ impl CfmcLogic {
         let remaining = &bytes[pos..];
 
         // Check longer operators first
-        if remaining.starts_with(b"NUMITEMS") {
+        if Self::starts_with_keyword(remaining, b"NUMITEMS") {
             Some((CfmcOperator::NumItems, 8))
         } else if remaining.starts_with(b"^^NB") {
             Some((CfmcOperator::IsNotBlank, 4))
-        } else if remaining.starts_with(b"NOT") {
+        } else if Self::starts_with_keyword(remaining, b"NOT") {
             Some((CfmcOperator::Not, 3))
-        } else if remaining.starts_with(b" AND ") {
-            Some((CfmcOperator::And, 5))
+        } else if Self::starts_with_keyword(remaining, b"AND") {
+            Some((CfmcOperator::And, 3))
         } else if remaining.starts_with(b"^^B") {
             Some((CfmcOperator::IsBlank, 3))
         } else if remaining.starts_with(b"<=") {
@@ -308,8 +317,8 @@ impl CfmcLogic {
             Some((CfmcOperator::GreaterEqual, 2))
         } else if remaining.starts_with(b"<>") {
             Some((CfmcOperator::NotEqual, 2))
-        } else if remaining.starts_with(b" OR ") {
-            Some((CfmcOperator::Or, 4))
+        } else if Self::starts_with_keyword(remaining, b"OR") {
+            Some((CfmcOperator::Or, 2))
         } else if !remaining.is_empty() {
             match remaining[0] {
                 b'<' => Some((CfmcOperator::Less, 1)),
@@ -348,10 +357,10 @@ impl CfmcLogic {
     const fn operator_length(op: &CfmcOperator) -> usize {
         match op {
             CfmcOperator::NumItems => 8,
-            CfmcOperator::And => 5,
-            CfmcOperator::IsNotBlank | CfmcOperator::Or => 4,
-            CfmcOperator::Not | CfmcOperator::IsBlank => 3,
-            CfmcOperator::LessEqual
+            CfmcOperator::IsNotBlank => 4,
+            CfmcOperator::And | CfmcOperator::Not | CfmcOperator::IsBlank => 3,
+            CfmcOperator::Or
+            | CfmcOperator::LessEqual
             | CfmcOperator::GreaterEqual
             | CfmcOperator::NotEqual => 2,
             _ => 1,
@@ -1257,6 +1266,29 @@ mod tests {
         println!("Parsed: {output}");
         // The parser normalizes by removing redundant outer parentheses
         assert_eq!(output, "SAMPLTY(1,2) AND NOT(PHRACE(02)) AND NOT(QSHISP(1) OR PHRACE(06)) AND NOT(QSHISP(2) AND PHRACE(01))");
+    }
 
+    #[test]
+    fn test_keyword_boundary_not_in_label() {
+        // Labels containing operator keywords should not be split on them
+        let logic = CfmcLogic::parse("NOTABLE(1) AND ORCHID(2)").unwrap();
+        let output = logic.to_string();
+        assert_eq!(output, "NOTABLE(1) AND ORCHID(2)");
+    }
+
+    #[test]
+    fn test_keyword_boundary_anderson() {
+        // "AND" inside "ANDERSON" must not be treated as an operator
+        let logic = CfmcLogic::parse("ANDERSON(1) OR COMP(2)").unwrap();
+        let output = logic.to_string();
+        assert_eq!(output, "ANDERSON(1) OR COMP(2)");
+    }
+
+    #[test]
+    fn test_keyword_boundary_numitems_prefix() {
+        // "NUMITEMS" inside "NUMITEMSX" must not be treated as an operator
+        let logic = CfmcLogic::parse("NUMITEMSX(1) AND COMP(2)").unwrap();
+        let output = logic.to_string();
+        assert_eq!(output, "NUMITEMSX(1) AND COMP(2)");
     }
 }
