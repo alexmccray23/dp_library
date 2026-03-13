@@ -15,6 +15,9 @@ pub struct WeightDirective {
     pub col_end: usize,
     pub decimal_width: usize,
     pub total: Option<f64>,
+    /// When `true`, the existing weight (from `cweight_cols`) is used as the
+    /// base weight for raking rather than starting from 1.0.
+    pub retain: bool,
 }
 
 impl WeightDirective {
@@ -82,6 +85,10 @@ pub struct ParsedWeightSpec {
     pub passes: Vec<QualifiedWeightPass>,
     pub tables: Vec<WeightTable>,
     pub assignments: Vec<ColumnAssignment>,
+    /// Column range for the current/prior weight, parsed from
+    /// `X IF(ALL) CWEIGHT(F!col_start:col_end)`. Used as base weights when a
+    /// pass has `retain = true`.
+    pub cweight_cols: Option<(usize, usize)>,
 }
 
 impl ParsedWeightSpec {
@@ -108,6 +115,7 @@ impl fmt::Debug for ParsedWeightSpec {
             .field("passes", &self.passes.len())
             .field("tables_count", &self.tables.len())
             .field("assignments", &self.assignments.len())
+            .field("cweight_cols", &self.cweight_cols)
             .finish()
     }
 }
@@ -146,7 +154,7 @@ pub fn parse_e_content(
             message: format!("TABLE {control_table_id} not found in .E file"),
         })?;
 
-    let (passes, assignments) = extract_weight_passes(&lines, control_range)?;
+    let (passes, assignments, cweight_cols) = extract_weight_passes(&lines, control_range)?;
 
     // Collect the union of all table IDs across passes.
     let mut seen_ids = Vec::new();
@@ -178,6 +186,7 @@ pub fn parse_e_content(
         passes,
         tables,
         assignments,
+        cweight_cols,
     })
 }
 
@@ -228,18 +237,22 @@ fn parse_table_line(line: &str) -> Option<u16> {
 // Internal: X WEIGHT directive
 // ---------------------------------------------------------------------------
 
-/// Scan the control table for `X SET QUAL(...)`, `X WEIGHT`, and `X IF`
-/// directives. Produces one `QualifiedWeightPass` per `X WEIGHT` line (paired
-/// with the most recently set qualifier) and a list of `ColumnAssignment`s
-/// from `X IF` directives.
+/// Scan the control table for `X SET QUAL(...)`, `X WEIGHT`, `X IF`, and
+/// `CWEIGHT` directives. Produces one `QualifiedWeightPass` per `X WEIGHT`
+/// line (paired with the most recently set qualifier), a list of
+/// `ColumnAssignment`s from `X IF` directives, and an optional CWEIGHT column
+/// range.
+#[allow(clippy::type_complexity)]
 fn extract_weight_passes(
     lines: &[&str],
     block: &TableBlock,
-) -> Result<(Vec<QualifiedWeightPass>, Vec<ColumnAssignment>), ParseEError> {
+) -> Result<(Vec<QualifiedWeightPass>, Vec<ColumnAssignment>, Option<(usize, usize)>), ParseEError>
+{
     let mut passes = Vec::new();
     let mut assignments = Vec::new();
     let mut current_qual: Option<UncleExpr> = None;
     let mut qual_str: Option<String> = None;
+    let mut cweight_cols: Option<(usize, usize)> = None;
 
     for (i, line) in lines.iter().enumerate().take(block.end).skip(block.start) {
         let trimmed = line.trim();
@@ -267,9 +280,12 @@ fn extract_weight_passes(
         }
 
         // X IF(condition) col=value — conditional column assignment.
+        // Also check for CWEIGHT directive: X IF(ALL) CWEIGHT(F!col:col)
         if let Some(rest) = trimmed.strip_prefix("X IF") {
             qual_str = Some(rest.to_string());
-            if let Some(assignment) = parse_x_if(rest.trim(), i + 1)? {
+            if let Some(cols) = parse_cweight(rest.trim()) {
+                cweight_cols = Some(cols);
+            } else if let Some(assignment) = parse_x_if(rest.trim(), i + 1)? {
                 assignments.push(assignment);
             }
             continue;
@@ -299,7 +315,7 @@ fn extract_weight_passes(
             message: format!("no X WEIGHT directive found in TABLE {}", block.id),
         });
     }
-    Ok((passes, assignments))
+    Ok((passes, assignments, cweight_cols))
 }
 
 /// Parse `X IF(condition) 1!col=value`. Returns `None` for forms we don't
@@ -337,6 +353,29 @@ fn parse_x_if(s: &str, line_num: usize) -> Result<Option<ColumnAssignment>, Pars
         col,
         value: value.trim().to_string(),
     }))
+}
+
+/// Try to parse a CWEIGHT directive from the rest of an `X IF` line.
+///
+/// Expected form: `(ALL) CWEIGHT(F!col_start:col_end)` (the leading `X IF`
+/// has already been stripped). Returns `Some((col_start, col_end))` on match.
+fn parse_cweight(s: &str) -> Option<(usize, usize)> {
+    // Strip "(ALL)" condition prefix.
+    let s = s.strip_prefix('(')?;
+    let (cond, rest) = s.split_once(')')?;
+    if !cond.trim().eq_ignore_ascii_case("ALL") {
+        return None;
+    }
+    let rest = rest.trim();
+    let inner = rest
+        .strip_prefix("CWEIGHT(")
+        .or_else(|| rest.strip_prefix("cweight("))?;
+    let inner = inner.strip_suffix(')')?;
+    // inner: "F!2400:2406" — strip optional format prefix (F!, I!, etc.)
+    let col_part = inner
+        .find('!')
+        .map_or(inner, |pos| &inner[pos + 1..]);
+    parse_col_range(col_part)
 }
 
 /// Parse the tokens after `X WEIGHT`. Supported forms:
@@ -380,8 +419,9 @@ fn parse_weight_line(s: &str, line_num: usize) -> Result<WeightDirective, ParseE
         .parse()
         .map_err(|_| err("invalid decimal width"))?;
 
-    // Scan remaining tokens for optional TOTAL.
+    // Scan remaining tokens for optional TOTAL and RETAIN.
     let mut total = None;
+    let mut retain = false;
     let mut j = 2;
     while j < after_to.len() {
         if after_to[j].eq_ignore_ascii_case("TOTAL") && j + 1 < after_to.len() {
@@ -390,7 +430,11 @@ fn parse_weight_line(s: &str, line_num: usize) -> Result<WeightDirective, ParseE
                     .parse::<f64>()
                     .map_err(|_| err("invalid TOTAL value"))?,
             );
-            break;
+            j += 2;
+            continue;
+        }
+        if after_to[j].eq_ignore_ascii_case("RETAIN") {
+            retain = true;
         }
         j += 1;
     }
@@ -401,6 +445,7 @@ fn parse_weight_line(s: &str, line_num: usize) -> Result<WeightDirective, ParseE
         col_end,
         decimal_width,
         total,
+        retain,
     })
 }
 
@@ -919,5 +964,39 @@ R Y;1!11-2;VALUE .4
         assert_eq!(spec.tables.len(), 2);
         assert_eq!(spec.tables[0].id, 601);
         assert_eq!(spec.tables[1].id, 602);
+    }
+
+    #[test]
+    fn parse_cweight_and_retain() {
+        let content = "\
+TABLE 620
+X IF(ALL) CWEIGHT(F!2400:2406)
+X IF(1!70N1) 1!2316=1
+X SET QUAL(1!70-1)
+X WEIGHT 621 TO 1!2410:2416 4 OFF TOTAL 3200 RETAIN
+X SET QUAL(ALL)
+*
+TABLE 621
+R A;1!10-1;VALUE .5
+R B;1!10-2;VALUE .5
+";
+        let spec = parse_e_content(content, 620).unwrap();
+
+        // CWEIGHT columns should be parsed.
+        assert_eq!(spec.cweight_cols, Some((2400, 2406)));
+
+        // RETAIN should be set on the directive.
+        assert!(spec.passes[0].directive.retain);
+
+        // The X IF(1!70N1) assignment should still be captured.
+        assert_eq!(spec.assignments.len(), 1);
+        assert_eq!(spec.assignments[0].col, 2316);
+    }
+
+    #[test]
+    fn retain_is_false_by_default() {
+        let spec = parse_e_content(SAMPLE_E, 600).unwrap();
+        assert!(!spec.passes[0].directive.retain);
+        assert!(spec.cweight_cols.is_none());
     }
 }

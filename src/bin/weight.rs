@@ -200,6 +200,13 @@ fn print_spec_summary(spec: &ParsedWeightSpec) {
         if let Some(total) = d.total {
             eprintln!("TOTAL scaling: {total}");
         }
+        if d.retain {
+            if let Some((cs, ce)) = spec.cweight_cols {
+                eprintln!("RETAIN: base weights from cols {cs}:{ce}");
+            } else {
+                eprintln!("RETAIN: (no CWEIGHT location found)");
+            }
+        }
     }
 
     for table in &spec.tables {
@@ -235,6 +242,11 @@ fn compute_all_weights(
     rfl: Option<&RflFile>,
     data: &[String],
 ) -> Vec<Option<f64>> {
+    // If any pass has RETAIN and a CWEIGHT location is defined, use the
+    // prior weight columns as base weights for raking.
+    let has_retain = spec.passes.iter().any(|p| p.directive.retain);
+    let base_weight_columns = if has_retain { spec.cweight_cols } else { None };
+
     let base_config = WeightConfig {
         raking: RakingConfig {
             convergence: ipf_survey::ConvergenceConfig {
@@ -245,6 +257,7 @@ fn compute_all_weights(
             ..Default::default()
         },
         base_weight_field: None,
+        base_weight_columns,
         target_tolerance: Some(0.005),
     };
 
