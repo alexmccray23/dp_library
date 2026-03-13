@@ -366,7 +366,7 @@ weight <table_id> [OPTIONS]
 
 | Flag                  | Short | Default        | Description                                    |
 |-----------------------|-------|----------------|------------------------------------------------|
-| `--exec-file <path>`  | `-e`  | auto-discover  | Path to `.E` file                              |
+| `--e-file <path>`  | `-e`  | auto-discover  | Path to `.E` file                              |
 | `--data-file <path>`  | `-d`  | auto-discover  | Path to input data file (`.fin`, `.rft`, `.c`) |
 | `--layout-file <path>`| `-l`  | auto-discover  | Path to `.rfl` file                            |
 | `--output <path>`     | `-o`  | `<stem>.WT`    | Output data file path                          |

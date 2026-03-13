@@ -21,12 +21,12 @@ struct Args {
     table_id: u16,
 
     #[arg(short = 'e', long = "e-file", help = "Path to .E file")]
-    exec_file: Option<String>,
+    e_file: Option<String>,
 
     #[arg(
         short = 'd',
         long = "data-file",
-        help = "Path to data file (.fin, .rft, .c)"
+        help = "Path to data file (.c, .fin)"
     )]
     data_file: Option<String>,
 
@@ -42,7 +42,7 @@ struct Args {
 }
 
 struct ResolvedFiles {
-    exec_file: String,
+    e_file: String,
     layout_file: Option<String>,
     data_file: String,
     output_file: String,
@@ -93,7 +93,7 @@ fn resolve_file(arg: Option<&String>, extensions: &[&str], label: &str) -> Strin
 }
 
 fn resolve_inputs(args: &Args) -> ResolvedFiles {
-    let exec_file = resolve_file(args.exec_file.as_ref(), &[".e"], ".E file");
+    let e_file = resolve_file(args.e_file.as_ref(), &[".e"], ".E file");
     let layout_file = args
         .layout_file
         .clone()
@@ -111,7 +111,7 @@ fn resolve_inputs(args: &Args) -> ResolvedFiles {
         .clone()
         .unwrap_or_else(|| default_output_name(&data_file));
 
-    eprintln!("Exec file:   {exec_file}");
+    eprintln!("E file:   {e_file}");
     if let Some(ref lf) = layout_file {
         eprintln!("Layout file: {lf}");
     }
@@ -119,7 +119,7 @@ fn resolve_inputs(args: &Args) -> ResolvedFiles {
     eprintln!("Output file: {output_file}");
 
     ResolvedFiles {
-        exec_file,
+        e_file,
         layout_file,
         data_file,
         output_file,
@@ -369,7 +369,7 @@ fn main() {
     let args = Args::parse();
     let files = resolve_inputs(&args);
 
-    let mut spec = parse_e_file(Path::new(&files.exec_file), args.table_id).unwrap_or_else(|e| {
+    let mut spec = parse_e_file(Path::new(&files.e_file), args.table_id).unwrap_or_else(|e| {
         eprintln!("Error parsing .E file: {e}");
         process::exit(1);
     });
