@@ -150,6 +150,11 @@ pub struct WeightConfig {
     /// is the respondent's design weight. If None, all base weights are 1.0.
     pub base_weight_field: Option<String>,
 
+    /// Raw column range (1-based, inclusive) containing a prior weight to use
+    /// as the base weight. Parsed from CWEIGHT + RETAIN in .E files. Takes
+    /// precedence over base_weight_field when both are set.
+    pub base_weight_columns: Option<(usize, usize)>,
+
     /// Tolerance for grand-total consistency across weight tables.
     /// Real-world tables often have rounded targets that don't sum identically.
     /// Default: 1e-6. Set higher (e.g. 0.005) for typical production tables.
@@ -350,6 +355,11 @@ pub struct ParsedWeightSpec {
     pub passes: Vec<QualifiedWeightPass>,
     pub tables: Vec<WeightTable>,
     pub assignments: Vec<ColumnAssignment>,
+    pub moves: Vec<MoveDirective>,
+    /// Column range for the current/prior weight, parsed from
+    /// X IF(ALL) CWEIGHT(F!col:col). Used as base weights when
+    /// a pass has retain = true.
+    pub cweight_cols: Option<(usize, usize)>,
 }
 
 pub struct QualifiedWeightPass {
@@ -364,6 +374,16 @@ pub struct WeightDirective {
     pub col_end: usize,                 // 1-based, inclusive
     pub decimal_width: usize,
     pub total: Option<f64>,
+    /// When true, the existing weight (from cweight_cols) is used as the
+    /// base weight for raking rather than starting from 1.0.
+    pub retain: bool,
+}
+
+/// Column copy from X MOVE fp:lp TO rp.
+pub struct MoveDirective {
+    pub from_start: usize,  // 1-based
+    pub from_end: usize,    // 1-based, inclusive
+    pub to_start: usize,    // 1-based
 }
 
 /// Conditional column assignment from X IF(condition) 1!col=value.
@@ -387,15 +407,24 @@ pub struct ColumnAssignment {
    - Single ID: `X WEIGHT 601 TO ...`
    - Range: `X WEIGHT 601 TH 610 TO ...`
    - Mixed: `X WEIGHT 601 603 TH 606 608 TH 610 TO ...`
+   - Optional `RETAIN` keyword: use prior weight (from `cweight_cols`) as
+     base weight for raking instead of 1.0.
    - `X WEIGHT UNWEIGHT` is ignored (clears prior weights in Uncle).
 4. **X SET QUAL(expr)**: Sets a qualifier for subsequent `X WEIGHT` lines.
    `X SET QUAL()` or `X SET QUAL(ALL)` clears the qualifier.
-5. **X IF(condition) 1!col=value**: Conditional column assignments, used to
+5. **X IF(ALL) CWEIGHT(F!col:col)**: Declares the column range where the
+   current/prior weight lives. Parsed into `cweight_cols`. The `F` (or
+   other format) prefix is stripped; only the column range is retained.
+6. **X MOVE fp:lp TO rp**: Column copy directive. Copies bytes from columns
+   `fp..=lp` to `rp..(rp + lp - fp)` for every record. Applied as a pre-pass
+   before raking, so that unqualified records get the prior weight copied to
+   the output location. The `1!` prefix is stripped if present.
+7. **X IF(condition) 1!col=value**: Conditional column assignments, used to
    set fixed values for records excluded from raking.
-6. **Comment lines**: Lines starting with `*` are skipped.
-7. **X lines** (other directives): `X ENTER NOADD`, `X SH`, `X SET OUT FILE`,
+8. **Comment lines**: Lines starting with `*` are skipped.
+9. **X lines** (other directives): `X ENTER NOADD`, `X SH`, `X SET OUT FILE`,
    `X PUNCH CHAR` are ignored.
-8. **Table block ends**: At the next `TABLE` line or end of file.
+10. **Table block ends**: At the next `TABLE` line or end of file.
 
 ### Error Type
 
@@ -451,16 +480,22 @@ X SET QUAL(1!87-2)
 X WEIGHT 601 TH 602 TO 1!2000:2006 4 OFF TOTAL 2000
 ```
 
-Conditional assignments set fixed values for excluded records:
+RETAIN with CWEIGHT uses a prior weight as the base for raking:
 
 ```
 TABLE 620
-X WEIGHT UNWEIGHT
+X IF(ALL) CWEIGHT(F!2400:2406)
 X IF(1!70N1) 1!2316=1
 X SET QUAL(1!70-1)
-X WEIGHT 621 TO 1!2410:2416 4 OFF TOTAL 3200
+X WEIGHT 621 TH 628 TO 1!2410:2416 4 OFF TOTAL 3200 RETAIN
 X SET QUAL(ALL)
 ```
+
+Here `CWEIGHT(F!2400:2406)` declares that the prior weight lives at cols
+2400-2406 (floating-point format). `RETAIN` on the `X WEIGHT` line tells the
+raking engine to multiply by the existing weight rather than starting from 1.0.
+Only records matching the qualifier (`1!70-1`) participate in raking; the
+`X IF(1!70N1)` assignment sets a fixed value for excluded records.
 
 ### CLI Design
 
@@ -487,7 +522,8 @@ or base weight fields are used.
   |  1. Parse .E file                                |
   |     - Find TABLE <table_id> (e.g., TABLE 600)   |
   |     - Extract X WEIGHT directives, X SET QUAL    |
-  |       qualifiers, X IF assignments               |
+  |       qualifiers, X IF assignments, CWEIGHT      |
+  |     - Detect RETAIN on X WEIGHT lines            |
   |     - Parse referenced weight tables             |
   +-------------------------+------------------------+
                             |
@@ -500,7 +536,16 @@ or base weight fields are used.
                             |
                             v
   +--------------------------------------------------+
-  |  3. Classify + Rake                              |
+  |  3. Apply X MOVE directives (pre-pass)           |
+  |     - Copy columns for every record              |
+  |     - e.g. MOVE 2400:2406 TO 2410 copies prior   |
+  |       weight to the output location              |
+  +-------------------------+------------------------+
+                            |
+                            v
+  +--------------------------------------------------+
+  |  4. Classify + Rake                              |
+  |     If RETAIN + CWEIGHT: set base_weight_columns |
   |     If multi-pass (qualifiers present):           |
   |       compute_weights_multi_pass()               |
   |     Otherwise:                                    |
@@ -509,12 +554,12 @@ or base weight fields are used.
                             |
                             v
   +--------------------------------------------------+
-  |  4. Apply column assignments (X IF directives)   |
+  |  5. Apply column assignments (X IF directives)   |
   +-------------------------+------------------------+
                             |
                             v
   +--------------------------------------------------+
-  |  5. Write output                                 |
+  |  6. Write output                                 |
   |     - Copy each data line                        |
   |     - Punch formatted weight at col_start:col_end|
   |     - Apply X IF assignments to qualifying lines |
@@ -561,8 +606,9 @@ Done. Wrote 2847 records to NAT.WT
    for programmatic use via the `WeightCondition` enum.
 
 2. **Faithful to UNCLE semantics** -- The `X WEIGHT` directive, table ID
-   ranges (`TH`), `X SET QUAL` qualifiers, `X IF` assignments, output
-   location, decimal formatting, and `TOTAL` scaling all mirror UNCLE behavior.
+   ranges (`TH`), `X SET QUAL` qualifiers, `X IF` assignments, `CWEIGHT` /
+   `RETAIN` base weights, output location, decimal formatting, and `TOTAL`
+   scaling all mirror UNCLE behavior.
 
 3. **Fail loud** -- Errors name the table ID, row label, and record index.
    Parse errors in the `.E` file report line numbers.

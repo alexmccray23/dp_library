@@ -219,6 +219,19 @@ fn print_spec_summary(spec: &ParsedWeightSpec) {
         );
     }
 
+    if !spec.moves.is_empty() {
+        eprintln!();
+        for m in &spec.moves {
+            eprintln!(
+                "MOVE {}:{} TO {} ({} chars)",
+                m.from_start,
+                m.from_end,
+                m.to_start,
+                m.width()
+            );
+        }
+    }
+
     if !spec.assignments.is_empty() {
         eprint!("\nColumn assignments:");
         for a in &spec.assignments {
@@ -395,8 +408,17 @@ fn main() {
             process::exit(1);
         })
     });
-    let data = read_data_lines(&files.data_file);
+    let mut data = read_data_lines(&files.data_file);
     eprintln!("Records: {}", data.len());
+
+    // Apply X MOVE directives as a pre-pass (copies columns before raking).
+    if !spec.moves.is_empty() {
+        for m in &spec.moves {
+            for line in &mut data {
+                *line = m.apply(line);
+            }
+        }
+    }
 
     let out_fmt = OutputFormat {
         col_start: spec.passes[0].directive.col_start,

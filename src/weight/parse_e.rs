@@ -43,6 +43,57 @@ pub struct QualifiedWeightPass {
     pub qual_str: Option<String>,
 }
 
+/// A column-copy directive from `X MOVE fp:lp TO rp`.
+///
+/// Copies bytes from columns `from_start..=from_end` to
+/// `to_start..=(to_start + from_end - from_start)` for every record.
+/// Applied as a pre-pass before raking.
+#[derive(Debug)]
+pub struct MoveDirective {
+    pub from_start: usize, // 1-based
+    pub from_end: usize,   // 1-based, inclusive
+    pub to_start: usize,   // 1-based
+}
+
+impl MoveDirective {
+    #[must_use]
+    pub const fn width(&self) -> usize {
+        self.from_end - self.from_start + 1
+    }
+
+    /// Apply this move to a single record line, returning the modified line.
+    #[must_use]
+    pub fn apply(&self, line: &str) -> String {
+        let w = self.width();
+        let src_start = self.from_start - 1; // 0-based
+        let dst_start = self.to_start - 1;
+        let dst_end = dst_start + w;
+
+        // Extract source bytes (pad with spaces if line is too short).
+        let src: String = if line.len() >= self.from_end {
+            line[src_start..self.from_end].to_string()
+        } else if line.len() > src_start {
+            let mut s = line[src_start..].to_string();
+            s.extend(std::iter::repeat_n(' ', self.from_end - line.len()));
+            s
+        } else {
+            " ".repeat(w)
+        };
+
+        // Ensure line is long enough for the destination.
+        let mut buf = if line.len() < dst_end {
+            let mut s = line.to_string();
+            s.extend(std::iter::repeat_n(' ', dst_end - s.len()));
+            s
+        } else {
+            line.to_string()
+        };
+
+        buf.replace_range(dst_start..dst_end, &src);
+        buf
+    }
+}
+
 /// A conditional column assignment from an `X IF(condition) col=value` directive.
 ///
 /// Uncle uses these to set fixed values for records that don't participate in
@@ -85,6 +136,7 @@ pub struct ParsedWeightSpec {
     pub passes: Vec<QualifiedWeightPass>,
     pub tables: Vec<WeightTable>,
     pub assignments: Vec<ColumnAssignment>,
+    pub moves: Vec<MoveDirective>,
     /// Column range for the current/prior weight, parsed from
     /// `X IF(ALL) CWEIGHT(F!col_start:col_end)`. Used as base weights when a
     /// pass has `retain = true`.
@@ -115,6 +167,7 @@ impl fmt::Debug for ParsedWeightSpec {
             .field("passes", &self.passes.len())
             .field("tables_count", &self.tables.len())
             .field("assignments", &self.assignments.len())
+            .field("moves", &self.moves.len())
             .field("cweight_cols", &self.cweight_cols)
             .finish()
     }
@@ -154,7 +207,13 @@ pub fn parse_e_content(
             message: format!("TABLE {control_table_id} not found in .E file"),
         })?;
 
-    let (passes, assignments, cweight_cols) = extract_weight_passes(&lines, control_range)?;
+    let directives = extract_weight_passes(&lines, control_range)?;
+    let ControlTableDirectives {
+        passes,
+        assignments,
+        moves,
+        cweight_cols,
+    } = directives;
 
     // Collect the union of all table IDs across passes.
     let mut seen_ids = Vec::new();
@@ -186,6 +245,7 @@ pub fn parse_e_content(
         passes,
         tables,
         assignments,
+        moves,
         cweight_cols,
     })
 }
@@ -237,19 +297,23 @@ fn parse_table_line(line: &str) -> Option<u16> {
 // Internal: X WEIGHT directive
 // ---------------------------------------------------------------------------
 
-/// Scan the control table for `X SET QUAL(...)`, `X WEIGHT`, `X IF`, and
-/// `CWEIGHT` directives. Produces one `QualifiedWeightPass` per `X WEIGHT`
-/// line (paired with the most recently set qualifier), a list of
-/// `ColumnAssignment`s from `X IF` directives, and an optional CWEIGHT column
-/// range.
-#[allow(clippy::type_complexity)]
+/// Extracted directives from scanning a control table block.
+struct ControlTableDirectives {
+    passes: Vec<QualifiedWeightPass>,
+    assignments: Vec<ColumnAssignment>,
+    moves: Vec<MoveDirective>,
+    cweight_cols: Option<(usize, usize)>,
+}
+
+/// Scan the control table for `X SET QUAL(...)`, `X WEIGHT`, `X IF`,
+/// `CWEIGHT`, and `X MOVE` directives.
 fn extract_weight_passes(
     lines: &[&str],
     block: &TableBlock,
-) -> Result<(Vec<QualifiedWeightPass>, Vec<ColumnAssignment>, Option<(usize, usize)>), ParseEError>
-{
+) -> Result<ControlTableDirectives, ParseEError> {
     let mut passes = Vec::new();
     let mut assignments = Vec::new();
+    let mut moves = Vec::new();
     let mut current_qual: Option<UncleExpr> = None;
     let mut qual_str: Option<String> = None;
     let mut cweight_cols: Option<(usize, usize)> = None;
@@ -291,6 +355,16 @@ fn extract_weight_passes(
             continue;
         }
 
+        // X MOVE fp:lp TO rp — column copy directive.
+        if let Some(rest) = trimmed.strip_prefix("X MOVE") {
+            if rest.starts_with(|c: char| c.is_ascii_whitespace())
+                && let Some(m) = parse_x_move(rest.trim(), i + 1)?
+            {
+                moves.push(m);
+            }
+            continue;
+        }
+
         // X WEIGHT directive.
         if let Some(rest) = trimmed.strip_prefix("X WEIGHT") {
             if rest.is_empty() || !rest.starts_with(|c: char| c.is_ascii_whitespace()) {
@@ -315,7 +389,12 @@ fn extract_weight_passes(
             message: format!("no X WEIGHT directive found in TABLE {}", block.id),
         });
     }
-    Ok((passes, assignments, cweight_cols))
+    Ok(ControlTableDirectives {
+        passes,
+        assignments,
+        moves,
+        cweight_cols,
+    })
 }
 
 /// Parse `X IF(condition) 1!col=value`. Returns `None` for forms we don't
@@ -376,6 +455,43 @@ fn parse_cweight(s: &str) -> Option<(usize, usize)> {
         .find('!')
         .map_or(inner, |pos| &inner[pos + 1..]);
     parse_col_range(col_part)
+}
+
+/// Parse `X MOVE fp:lp TO rp`. The leading `X MOVE` has been stripped.
+///
+/// Basic form only: `2400:2406 TO 2410`. The `1!` record prefix is stripped
+/// if present. Returns `None` for forms we don't yet handle (mask, merge,
+/// match, blank, literal, FOR).
+fn parse_x_move(s: &str, line_num: usize) -> Result<Option<MoveDirective>, ParseEError> {
+    let tokens: Vec<&str> = s.split_whitespace().collect();
+
+    let to_pos = tokens
+        .iter()
+        .position(|t| t.eq_ignore_ascii_case("TO"));
+    let Some(to_pos) = to_pos else {
+        return Ok(None);
+    };
+    if to_pos != 1 || to_pos + 1 >= tokens.len() {
+        return Ok(None);
+    }
+
+    let from_str = tokens[0].strip_prefix("1!").unwrap_or(tokens[0]);
+    let (from_start, from_end) = parse_col_range(from_str).ok_or_else(|| ParseEError {
+        line_num,
+        message: format!("X MOVE: invalid source range '{from_str}'"),
+    })?;
+
+    let to_str = tokens[to_pos + 1].strip_prefix("1!").unwrap_or(tokens[to_pos + 1]);
+    let to_start: usize = to_str.parse().map_err(|_| ParseEError {
+        line_num,
+        message: format!("X MOVE: invalid destination '{to_str}'"),
+    })?;
+
+    Ok(Some(MoveDirective {
+        from_start,
+        from_end,
+        to_start,
+    }))
 }
 
 /// Parse the tokens after `X WEIGHT`. Supported forms:
@@ -998,5 +1114,68 @@ R B;1!10-2;VALUE .5
         let spec = parse_e_content(SAMPLE_E, 600).unwrap();
         assert!(!spec.passes[0].directive.retain);
         assert!(spec.cweight_cols.is_none());
+        assert!(spec.moves.is_empty());
+    }
+
+    #[test]
+    fn parse_x_move_directive() {
+        let content = "\
+TABLE 620
+X MOVE 2400:2406 TO 2410
+X IF(ALL) CWEIGHT(F!2400:2406)
+X SET QUAL(1!70-1)
+X WEIGHT 621 TO 1!2410:2416 4 OFF TOTAL 3200 RETAIN
+X SET QUAL(ALL)
+*
+TABLE 621
+R A;1!10-1;VALUE .5
+R B;1!10-2;VALUE .5
+";
+        let spec = parse_e_content(content, 620).unwrap();
+        assert_eq!(spec.moves.len(), 1);
+        assert_eq!(spec.moves[0].from_start, 2400);
+        assert_eq!(spec.moves[0].from_end, 2406);
+        assert_eq!(spec.moves[0].to_start, 2410);
+        assert_eq!(spec.moves[0].width(), 7);
+    }
+
+    #[test]
+    fn move_directive_apply_copies_columns() {
+        let m = MoveDirective {
+            from_start: 3,
+            from_end: 5,
+            to_start: 8,
+        };
+        // "  ABC  XY" → cols 3:5 = "ABC", copy to col 8 → "  ABC  ABC"
+        //  123456789012
+        let result = m.apply("  ABC  XY");
+        assert_eq!(&result[7..10], "ABC");
+        // Source is preserved (no BLANK).
+        assert_eq!(&result[2..5], "ABC");
+    }
+
+    #[test]
+    fn move_directive_pads_short_lines() {
+        let m = MoveDirective {
+            from_start: 1,
+            from_end: 3,
+            to_start: 10,
+        };
+        let result = m.apply("Hi!");
+        assert_eq!(result.len(), 12);
+        assert_eq!(&result[9..12], "Hi!");
+    }
+
+    #[test]
+    fn move_directive_short_source_pads_with_spaces() {
+        let m = MoveDirective {
+            from_start: 3,
+            from_end: 6,
+            to_start: 1,
+        };
+        // Line is only 4 chars, but source needs cols 3:6 (4 chars).
+        // Cols 3-4 = "cd", cols 5-6 = spaces (padded).
+        let result = m.apply("abcd");
+        assert_eq!(&result[0..4], "cd  ");
     }
 }
