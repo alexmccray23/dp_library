@@ -151,7 +151,7 @@ pub struct WeightConfig {
 
     /// Tolerance for grand-total consistency across weight tables.
     /// Real-world tables often have rounded targets that don't sum identically.
-    /// Default: 1e-6. Set higher (e.g. 0.005) for typical production tables.
+    /// Default: 1e-6. Set higher (e.g. 0.005) for typical project tables.
     pub target_tolerance: Option<f64>,
 }
 ```
@@ -283,7 +283,7 @@ pub enum WeightError {
     /// Record matched multiple categories in a table.
     MultipleMatches { table_id: u16, record: usize, matched: Vec<String> },
 
-    /// Base weight field not found in RFL or value couldn't be parsed.
+    /// Base weight field not found or value couldn't be parsed.
     BaseWeightField { field: String, record: usize, detail: String },
 
     /// Target values don't sum consistently across tables.
@@ -299,12 +299,12 @@ pub enum WeightError {
 
 ## uncle.rs
 
-`UncleExpr` parses and evaluates all UNCLE qualification syntax used in
-production weight tables. It is an enum with recursive descent parsing:
+`UncleExpr` parses and evaluates all UNCLE qualification syntax used in E file 
+weight tables. It is an enum constructed by recursive descent parsing:
 
 ```rust
 pub enum UncleExpr {
-    Term(Term),              // pos relation code_spec
+    PQual(PQual),            // pos relation code_spec (e.g, 1!42-1)
     RQual(RQual),            // R() numeric field qualifier
     Literal(LiteralMatch),   // pos 'STRING'
     Not(Box<Self>),          // NOT(expr)
@@ -358,8 +358,8 @@ pub struct ParsedWeightSpec {
 
 pub struct QualifiedWeightPass {
     pub qualifier: Option<UncleExpr>,   // X SET QUAL(expr) filter
-    pub directive: WeightDirective,      // X WEIGHT columns + tables
-    pub qual_str: Option<String>,        // original qualifier string for display
+    pub directive: WeightDirective,     // X WEIGHT columns + tables
+    pub qual_str: Option<String>,       // original qualifier string for display
 }
 
 pub struct WeightDirective {
@@ -514,7 +514,7 @@ or base weight fields are used.
 ```
   +--------------------------------------------------+
   |  1. Parse .E file                                |
-  |     - Find TABLE <table_id> (e.g., TABLE 600)   |
+  |     - Find TABLE <table_id> (e.g., TABLE 600)    |
   |     - Extract X WEIGHT directives, X SET QUAL    |
   |       qualifiers, X IF assignments, CWEIGHT      |
   |     - Detect RETAIN on X WEIGHT lines            |
@@ -540,9 +540,9 @@ or base weight fields are used.
   +--------------------------------------------------+
   |  4. Classify + Rake                              |
   |     If RETAIN + CWEIGHT: set base_weight_columns |
-  |     If multi-pass (qualifiers present):           |
+  |     If multi-pass (qualifiers present):          |
   |       compute_weights_multi_pass()               |
-  |     Otherwise:                                    |
+  |     Otherwise:                                   |
   |       classify() + rake_classified_full()        |
   +-------------------------+------------------------+
                             |
@@ -594,7 +594,7 @@ Done. Wrote 2847 records to NAT.WT
 
 ## Design Principles
 
-1. **UNCLE-native** -- Production weight tables use UNCLE syntax exclusively.
+1. **UNCLE-native** -- `.E` file weight tables use UNCLE syntax exclusively.
    `UncleExpr` handles all condition parsing and evaluation. The `.E` file
    parser always produces `WeightCondition::Uncle`. CFMC support is retained
    for programmatic use via the `WeightCondition` enum.

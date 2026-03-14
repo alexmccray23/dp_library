@@ -30,7 +30,7 @@ use std::fmt;
 #[derive(Debug, Clone)]
 pub enum UncleExpr {
     /// Basic position test: `pos relation code_spec`.
-    Term(Term),
+    PQual(PQual),
     /// `R()` numeric field qualifier.
     RQual(RQual),
     /// Literal string match: `pos 'STRING'`.
@@ -66,7 +66,7 @@ pub enum CodeVal {
 
 /// A basic position-code test.
 #[derive(Debug, Clone)]
-pub struct Term {
+pub struct PQual {
     /// 1-indexed column in the data record.
     pub col: usize,
     pub relation: Relation,
@@ -163,7 +163,7 @@ impl UncleExpr {
     /// Returns an error string if evaluation encounters an internal inconsistency.
     pub fn evaluate(&self, record: &str) -> Result<bool, String> {
         match self {
-            Self::Term(t) => t.evaluate(record),
+            Self::PQual(p) => p.evaluate(record),
             Self::RQual(r) => r.evaluate(record),
             Self::Literal(l) => Ok(l.evaluate(record)),
             Self::Not(inner) => Ok(!inner.evaluate(record)?),
@@ -195,7 +195,7 @@ impl CodeVal {
     }
 }
 
-impl Term {
+impl PQual {
     fn evaluate(&self, record: &str) -> Result<bool, String> {
         let idx = self.col - 1;
         // Out-of-range columns evaluate to blank/absent.
@@ -615,7 +615,7 @@ impl Parser {
 
         // Multiple positions desugar to an OR tree.
         let terms = positions.iter().map(|&col| {
-            UncleExpr::Term(Term { col, relation: relation.clone(), codes: codes.clone() })
+            UncleExpr::PQual(PQual { col, relation: relation.clone(), codes: codes.clone() })
         });
         Ok(terms.reduce(|a, b| UncleExpr::Or(Box::new(a), Box::new(b))).unwrap())
     }

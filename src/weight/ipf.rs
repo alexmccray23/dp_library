@@ -71,7 +71,7 @@ pub struct WeightConfig {
     pub base_weight_columns: Option<(usize, usize)>,
     /// Tolerance for grand-total consistency across weight tables.
     /// Real-world tables often have rounded targets that don't sum identically.
-    /// Default: `1e-6`. Set higher (e.g. `0.01`) for typical production tables.
+    /// Default: `1e-6`. Set higher (e.g. `0.01`) for typical weighting schemes.
     pub target_tolerance: Option<f64>,
 }
 
@@ -99,7 +99,7 @@ pub enum WeightError {
         matched: Vec<String>,
     },
 
-    /// Base weight field not found in RFL or value couldn't be parsed.
+    /// Base weight field not found or value couldn't be parsed.
     BaseWeightField {
         field: String,
         record: usize,

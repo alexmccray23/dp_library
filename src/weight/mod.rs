@@ -9,5 +9,5 @@ pub use ipf::{
 };
 pub use parse_e::{ColumnAssignment, MoveDirective, ParseEError, ParsedWeightSpec, QualifiedWeightPass, WeightDirective, parse_e_file};
 pub use uncle::{
-    CodeVal, LiteralMatch, ParseError, RQual, RValue, Relation, Term, UncleExpr,
+    CodeVal, LiteralMatch, ParseError, RQual, RValue, Relation, PQual, UncleExpr,
 };
