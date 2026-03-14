@@ -6,6 +6,7 @@ use ipf_survey::{
 };
 
 use ahash::AHashMap;
+use rayon::prelude::*;
 
 use crate::cfmc::CfmcLogic;
 use crate::rfl::{RflFile, RflQuestion};
@@ -200,86 +201,27 @@ pub fn compute_weights_multi_pass(
     tables: &[WeightTable],
     config: &WeightConfig,
     rfl: Option<&RflFile>,
-    data: &[impl AsRef<str>],
+    data: &[impl AsRef<str> + Sync],
 ) -> Result<MultiPassResult, WeightError> {
+    // Run all passes in parallel. Each produces qualifying indices + raking result.
+    let pass_outputs: Vec<(Vec<usize>, RakingResult)> = passes
+        .par_iter()
+        .filter_map(|pass| {
+            let result = run_single_pass(pass, tables, config, rfl, data);
+            // Filter out passes with no qualifying records (Ok(None)).
+            match result {
+                Ok(Some(output)) => Some(Ok(output)),
+                Ok(None) => None,
+                Err(e) => Some(Err(e)),
+            }
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    // Merge results sequentially (preserves pass ordering for last-match-wins).
     let mut weights: Vec<Option<f64>> = vec![None; data.len()];
     let mut pass_results: Vec<RakingResult> = Vec::new();
 
-    for pass in passes {
-        // Determine which records qualify for this pass.
-        let qualifying: Vec<usize> = if let Some(ref qual) = pass.qualifier {
-            data.iter()
-                .enumerate()
-                .filter_map(|(i, line)| match qual.evaluate(line.as_ref()) {
-                    Ok(true) => Some(Ok(i)),
-                    Ok(false) => None,
-                    Err(e) => Some(Err(WeightError::ConditionEval {
-                        table_id: 0,
-                        row_label: "X SET QUAL".to_string(),
-                        record: i,
-                        source: e,
-                    })),
-                })
-                .collect::<Result<Vec<_>, _>>()?
-        } else {
-            (0..data.len()).collect()
-        };
-
-        if qualifying.is_empty() {
-            continue;
-        }
-
-        // Extract the subset of data for this pass (borrow, no clone).
-        let subset: Vec<&str> = qualifying.iter().map(|&i| data[i].as_ref()).collect();
-
-        let normalization = pass.directive.total.map_or(
-            ipf_survey::Normalization::SumToN,
-            ipf_survey::Normalization::SumTo,
-        );
-
-        let pass_config = WeightConfig {
-            raking: RakingConfig {
-                normalization,
-                ..config.raking.clone()
-            },
-            base_weight_field: config.base_weight_field.clone(),
-            base_weight_columns: config.base_weight_columns,
-            target_tolerance: config.target_tolerance,
-        };
-
-        // Build a temporary scheme from this pass's referenced tables.
-        let scheme = WeightScheme {
-            tables: pass
-                .directive
-                .table_ids
-                .iter()
-                .map(|&id| {
-                    let t = tables
-                        .iter()
-                        .find(|t| t.id == id)
-                        .ok_or(WeightError::MissingTable { table_id: id })?;
-                    Ok(WeightTable {
-                        id: t.id,
-                        label: t.label.clone(),
-                        categories: t
-                            .categories
-                            .iter()
-                            .map(|c| WeightCategory {
-                                label: c.label.clone(),
-                                condition: c.condition.clone(),
-                                target: c.target,
-                            })
-                            .collect(),
-                    })
-                })
-                .collect::<Result<Vec<_>, _>>()?,
-            config: pass_config,
-        };
-
-        let (survey, targets) = classify(&scheme, rfl, &subset)?;
-        let result = rake_classified_full(&survey, &targets, &scheme.config.raking)?;
-
-        // Merge back into the main weights vector.
+    for (qualifying, result) in pass_outputs {
         for (j, &record_idx) in qualifying.iter().enumerate() {
             weights[record_idx] = Some(result.weights[j]);
         }
@@ -290,6 +232,91 @@ pub fn compute_weights_multi_pass(
         weights,
         pass_results,
     })
+}
+
+/// Execute a single weight pass: qualify records, classify, and rake.
+/// Returns `Ok(None)` if no records qualify for this pass.
+fn run_single_pass(
+    pass: &crate::weight::QualifiedWeightPass,
+    tables: &[WeightTable],
+    config: &WeightConfig,
+    rfl: Option<&RflFile>,
+    data: &[impl AsRef<str>],
+) -> Result<Option<(Vec<usize>, RakingResult)>, WeightError> {
+    // Determine which records qualify for this pass.
+    let qualifying: Vec<usize> = if let Some(ref qual) = pass.qualifier {
+        data.iter()
+            .enumerate()
+            .filter_map(|(i, line)| match qual.evaluate(line.as_ref()) {
+                Ok(true) => Some(Ok(i)),
+                Ok(false) => None,
+                Err(e) => Some(Err(WeightError::ConditionEval {
+                    table_id: 0,
+                    row_label: "X SET QUAL".to_string(),
+                    record: i,
+                    source: e,
+                })),
+            })
+            .collect::<Result<Vec<_>, _>>()?
+    } else {
+        (0..data.len()).collect()
+    };
+
+    if qualifying.is_empty() {
+        return Ok(None);
+    }
+
+    // Extract the subset of data for this pass (borrow, no clone).
+    let subset: Vec<&str> = qualifying.iter().map(|&i| data[i].as_ref()).collect();
+
+    let normalization = pass.directive.total.map_or(
+        ipf_survey::Normalization::SumToN,
+        ipf_survey::Normalization::SumTo,
+    );
+
+    let pass_config = WeightConfig {
+        raking: RakingConfig {
+            normalization,
+            ..config.raking.clone()
+        },
+        base_weight_field: config.base_weight_field.clone(),
+        base_weight_columns: config.base_weight_columns,
+        target_tolerance: config.target_tolerance,
+    };
+
+    // Build a temporary scheme from this pass's referenced tables.
+    let scheme = WeightScheme {
+        tables: pass
+            .directive
+            .table_ids
+            .iter()
+            .map(|&id| {
+                let t = tables
+                    .iter()
+                    .find(|t| t.id == id)
+                    .ok_or(WeightError::MissingTable { table_id: id })?;
+                Ok(WeightTable {
+                    id: t.id,
+                    label: t.label.clone(),
+                    categories: t
+                        .categories
+                        .iter()
+                        .map(|c| WeightCategory {
+                            label: c.label.clone(),
+                            condition: c.condition.clone(),
+                            target: c.target,
+                        })
+                        .collect(),
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?,
+        config: pass_config,
+    };
+
+    let (survey, targets) = classify(&scheme, rfl, &subset)?;
+    let result = rake_classified_full(&survey, &targets, &scheme.config.raking)?;
+
+    Ok(Some((qualifying, result)))
 }
 
 /// Extract base weights from column positions or an RFL field.
