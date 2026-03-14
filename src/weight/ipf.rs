@@ -43,8 +43,8 @@ pub struct WeightCategory {
 
 #[derive(Clone)]
 pub enum WeightCondition {
-    Cfmc(CfmcLogic),
     Uncle(UncleExpr),
+    Cfmc(CfmcLogic),
 }
 
 impl WeightCondition {
@@ -54,24 +54,20 @@ impl WeightCondition {
         record: &str,
     ) -> Result<bool, String> {
         match self {
+            Self::Uncle(expr) => expr.evaluate(record),
             Self::Cfmc(logic) => {
                 let questions =
                     questions.ok_or("RFL layout file is required to evaluate CFMC conditions")?;
                 logic.evaluate(questions, record)
             }
-            Self::Uncle(expr) => expr.evaluate(record),
         }
     }
 }
 
 pub struct WeightConfig {
     pub raking: RakingConfig,
-    /// RFL question label whose numeric value is used as the design weight.
-    /// If `None`, all base weights are 1.0.
-    pub base_weight_field: Option<String>,
-    /// Raw column range (1-based, inclusive) containing a prior weight to use
-    /// as the base weight. Parsed from `CWEIGHT(F!col:col)` + `RETAIN` in
-    /// `.E` files. Takes precedence over `base_weight_field` when both are set.
+    /// Raw column range (1-based, inclusive) containing a prior weight to use as
+    /// the base weight. Parsed from `CWEIGHT(F!col:col)` + `RETAIN` in `.E` files.
     pub base_weight_columns: Option<(usize, usize)>,
     /// Tolerance for grand-total consistency across weight tables.
     /// Real-world tables often have rounded targets that don't sum identically.
@@ -279,7 +275,6 @@ fn run_single_pass(
             normalization,
             ..config.raking.clone()
         },
-        base_weight_field: config.base_weight_field.clone(),
         base_weight_columns: config.base_weight_columns,
         target_tolerance: config.target_tolerance,
     };
@@ -322,7 +317,6 @@ fn run_single_pass(
 /// Extract base weights from column positions or an RFL field.
 fn extract_base_weights(
     config: &WeightConfig,
-    rfl: Option<&RflFile>,
     data: &[impl AsRef<str>],
 ) -> Result<Option<Vec<f64>>, WeightError> {
     if let Some((col_start, col_end)) = config.base_weight_columns {
@@ -348,34 +342,6 @@ fn extract_base_weights(
             })
             .collect();
         Ok(Some(weights?))
-    } else if let Some(field) = &config.base_weight_field {
-        let rfl = rfl.ok_or_else(|| WeightError::BaseWeightField {
-            field: field.clone(),
-            record: 0,
-            detail: "RFL layout file is required for base_weight_field".to_string(),
-        })?;
-        let question = rfl
-            .get_question(field)
-            .ok_or_else(|| WeightError::BaseWeightField {
-                field: field.clone(),
-                record: 0,
-                detail: format!("question \"{field}\" not found in RFL"),
-            })?;
-        let weights: Result<Vec<f64>, WeightError> = data
-            .iter()
-            .enumerate()
-            .map(|(r, line)| {
-                let responses = question.extract_responses(line.as_ref());
-                let raw = responses.first().map_or("", |s| s.trim());
-                raw.parse::<f64>()
-                    .map_err(|_| WeightError::BaseWeightField {
-                        field: field.clone(),
-                        record: r,
-                        detail: format!("could not parse \"{raw}\" as f64"),
-                    })
-            })
-            .collect();
-        Ok(Some(weights?))
     } else {
         Ok(None)
     }
@@ -392,7 +358,7 @@ pub fn classify(
     let n_tables = scheme.tables.len();
     let questions = rfl.map(RflFile::questions);
 
-    let base_weights = extract_base_weights(&scheme.config, rfl, data)?;
+    let base_weights = extract_base_weights(&scheme.config, data)?;
 
     // Classify: flat codes array, row-major (record × table).
     let mut codes = vec![0usize; n_records * n_tables];
@@ -537,48 +503,11 @@ mod tests {
         RflFile::from_lines(&lines).unwrap()
     }
 
-    /// Same as `make_rfl` plus a BASEWT numeric field at col 45, width 5.
-    fn make_rfl_with_basewt() -> RflFile {
-        let lines: Vec<String> = [
-            "Q GENDER                         FLD  [2994]         --> [43]",
-            "T GENDER",
-            "R     1                                                             MALE",
-            "R     2                                                             FEMALE",
-            "R     3                                                             OTHER",
-            "Q AGEGROUP                       FLD  [2984]         --> [41]",
-            "T AGEGROUP",
-            "R     1                                                             18-24",
-            "R     2                                                             25-34",
-            "R     3                                                             35-44",
-            "R     4                                                             45-54",
-            "R     5                                                             55-64",
-            "R     6                                                             65+",
-            "R     7                                                             REFUSED",
-            "Q BASEWT                         NUM  [3000.5]       --> [45.5]",
-            "T BASE WEIGHT",
-        ]
-        .iter()
-        .map(|s| s.to_string())
-        .collect();
-        RflFile::from_lines(&lines).unwrap()
-    }
-
     /// Build a 50-char fixed-width record with specific AGEGROUP (col 41) and GENDER (col 43).
     fn make_record(agegroup: char, gender: char) -> String {
         let mut s = vec![b' '; 50];
         s[40] = agegroup as u8; // col 41 → index 40
         s[42] = gender as u8; // col 43 → index 42
-        String::from_utf8(s).unwrap()
-    }
-
-    /// Same as `make_record` but also writes a 5-char base weight at col 45 (indices 44–48).
-    fn make_record_with_basewt(agegroup: char, gender: char, weight: &str) -> String {
-        let mut s = vec![b' '; 50];
-        s[40] = agegroup as u8;
-        s[42] = gender as u8;
-        for (i, b) in weight.bytes().take(5).enumerate() {
-            s[44 + i] = b; // col 45 → index 44
-        }
         String::from_utf8(s).unwrap()
     }
 
@@ -637,7 +566,6 @@ mod tests {
             ],
             config: WeightConfig {
                 raking: RakingConfig::default(),
-                base_weight_field: None,
                 base_weight_columns: None,
                 target_tolerance: None,
             },
@@ -745,7 +673,6 @@ mod tests {
             }],
             config: WeightConfig {
                 raking: RakingConfig::default(),
-                base_weight_field: None,
                 base_weight_columns: None,
                 target_tolerance: None,
             },
@@ -815,7 +742,6 @@ mod tests {
             ],
             config: WeightConfig {
                 raking: RakingConfig::default(),
-                base_weight_field: None,
                 base_weight_columns: None,
                 target_tolerance: None,
             },
@@ -825,116 +751,6 @@ mod tests {
         let err = classify(&scheme, Some(&rfl), &data).unwrap_err();
         assert!(
             matches!(err, WeightError::TargetMismatch { .. }),
-            "unexpected error: {err}"
-        );
-    }
-
-    // -----------------------------------------------------------------------
-    // Base weight field
-    // -----------------------------------------------------------------------
-
-    #[test]
-    fn base_weight_field_is_extracted_and_passed_to_survey() {
-        let rfl = make_rfl_with_basewt();
-        let scheme = WeightScheme {
-            tables: vec![WeightTable {
-                id: 601,
-                label: None,
-                categories: vec![
-                    WeightCategory {
-                        label: "MALE".to_string(),
-                        condition: WeightCondition::Cfmc(CfmcLogic::parse("GENDER(1)").unwrap()),
-                        target: 0.5,
-                    },
-                    WeightCategory {
-                        label: "FEMALE/OTHER".to_string(),
-                        condition: WeightCondition::Cfmc(CfmcLogic::parse("GENDER(2,3)").unwrap()),
-                        target: 0.5,
-                    },
-                ],
-            }],
-            config: WeightConfig {
-                raking: RakingConfig::default(),
-                base_weight_field: Some("BASEWT".to_string()),
-                base_weight_columns: None,
-                target_tolerance: None,
-            },
-        };
-
-        // "2.0  " occupies the 5-char BASEWT field (col 45, width 5).
-        let data = vec![
-            make_record_with_basewt('1', '1', "2.0  "),
-            make_record_with_basewt('1', '2', "1.0  "),
-            make_record_with_basewt('1', '1', "0.5  "),
-        ];
-
-        let (survey, _) = classify(&scheme, Some(&rfl), &data).unwrap();
-        assert_eq!(survey.base_weight(0), 2.0);
-        assert_eq!(survey.base_weight(1), 1.0);
-        assert_eq!(survey.base_weight(2), 0.5);
-    }
-
-    #[test]
-    fn base_weight_field_missing_from_rfl_returns_error() {
-        let rfl = make_rfl(); // no BASEWT question
-        let scheme = WeightScheme {
-            tables: vec![WeightTable {
-                id: 601,
-                label: None,
-                categories: vec![WeightCategory {
-                    label: "MALE".to_string(),
-                    condition: WeightCondition::Cfmc(CfmcLogic::parse("GENDER(1)").unwrap()),
-                    target: 1.0,
-                }],
-            }],
-            config: WeightConfig {
-                raking: RakingConfig::default(),
-                base_weight_field: Some("BASEWT".to_string()),
-                base_weight_columns: None,
-                target_tolerance: None,
-            },
-        };
-
-        let data = vec![make_record('1', '1')];
-        let err = classify(&scheme, Some(&rfl), &data).unwrap_err();
-        assert!(
-            matches!(&err, WeightError::BaseWeightField { field, .. } if field == "BASEWT"),
-            "unexpected error: {err}"
-        );
-    }
-
-    #[test]
-    fn base_weight_field_non_numeric_returns_error() {
-        let rfl = make_rfl_with_basewt();
-        let scheme = WeightScheme {
-            tables: vec![WeightTable {
-                id: 601,
-                label: None,
-                categories: vec![
-                    WeightCategory {
-                        label: "MALE".to_string(),
-                        condition: WeightCondition::Cfmc(CfmcLogic::parse("GENDER(1)").unwrap()),
-                        target: 0.5,
-                    },
-                    WeightCategory {
-                        label: "FEMALE/OTHER".to_string(),
-                        condition: WeightCondition::Cfmc(CfmcLogic::parse("GENDER(2,3)").unwrap()),
-                        target: 0.5,
-                    },
-                ],
-            }],
-            config: WeightConfig {
-                raking: RakingConfig::default(),
-                base_weight_field: Some("BASEWT".to_string()),
-                base_weight_columns: None,
-                target_tolerance: None,
-            },
-        };
-
-        let data = vec![make_record_with_basewt('1', '1', "abc  ")];
-        let err = classify(&scheme, Some(&rfl), &data).unwrap_err();
-        assert!(
-            matches!(&err, WeightError::BaseWeightField { record: 0, .. }),
             "unexpected error: {err}"
         );
     }
@@ -980,7 +796,6 @@ mod tests {
             }],
             config: WeightConfig {
                 raking: RakingConfig::default(),
-                base_weight_field: None,
                 base_weight_columns: Some((45, 49)),
                 target_tolerance: None,
             },

@@ -269,7 +269,6 @@ fn compute_all_weights(
             },
             ..Default::default()
         },
-        base_weight_field: None,
         base_weight_columns,
         target_tolerance: Some(0.005),
     };

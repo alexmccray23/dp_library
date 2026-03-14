@@ -75,14 +75,13 @@ pub struct WeightCategory {
 ### 2. Conditions
 
 Conditions use the `WeightCondition` dispatch enum, supporting both UNCLE
-position-based syntax (the default for production `.E` files) and CFMC
-label-based syntax (for programmatic use with RFL metadata):
+position-based syntax (the default for `.E` files) and CFMC label-based syntax.
 
 ```rust
 #[derive(Clone)]
 pub enum WeightCondition {
-    Cfmc(CfmcLogic),
     Uncle(UncleExpr),
+    Cfmc(CfmcLogic),
 }
 
 impl WeightCondition {
@@ -92,12 +91,12 @@ impl WeightCondition {
         record: &str,
     ) -> Result<bool, String> {
         match self {
+            Self::Uncle(expr) => expr.evaluate(record),
             Self::Cfmc(logic) => {
                 let questions = questions
                     .ok_or("RFL layout file is required to evaluate CFMC conditions")?;
                 logic.evaluate(questions, record)
             }
-            Self::Uncle(expr) => expr.evaluate(record),
         }
     }
 }
@@ -136,7 +135,7 @@ positions. The `.E` file parser always produces `WeightCondition::Uncle`.
 ### 3. Survey Data
 
 - An optional `RflFile` for question metadata (required only when CFMC
-  conditions or base weight fields are used).
+  conditions are used).
 - A `&[impl AsRef<str>]` of fixed-width data lines, one per respondent.
 
 ### 4. Configuration
@@ -146,13 +145,8 @@ pub struct WeightConfig {
     /// Passed through to ipf_survey::rake()
     pub raking: RakingConfig,
 
-    /// Optional base weight field -- an RFL question label whose numeric value
-    /// is the respondent's design weight. If None, all base weights are 1.0.
-    pub base_weight_field: Option<String>,
-
     /// Raw column range (1-based, inclusive) containing a prior weight to use
-    /// as the base weight. Parsed from CWEIGHT + RETAIN in .E files. Takes
-    /// precedence over base_weight_field when both are set.
+    /// as the base weight. Parsed from CWEIGHT + RETAIN in .E files.
     pub base_weight_columns: Option<(usize, usize)>,
 
     /// Tolerance for grand-total consistency across weight tables.
