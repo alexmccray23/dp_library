@@ -111,12 +111,12 @@ fn resolve_inputs(args: &Args) -> ResolvedFiles {
         .clone()
         .unwrap_or_else(|| default_output_name(&data_file));
 
-    eprintln!("E file:   {e_file}");
+    println!("E file:   {e_file}");
     if let Some(ref lf) = layout_file {
-        eprintln!("Layout file: {lf}");
+        println!("Layout file: {lf}");
     }
-    eprintln!("Data file:   {data_file}");
-    eprintln!("Output file: {output_file}");
+    println!("Data file:   {data_file}");
+    println!("Output file: {output_file}");
 
     ResolvedFiles {
         e_file,
@@ -184,13 +184,13 @@ fn print_spec_summary(spec: &ParsedWeightSpec) {
             .collect();
         if has_qualifiers {
             if let Some(ref qual) = pass.qual_str {
-                eprintln!("\nPass {}: qualifier = {qual}", pi + 1);
+                println!("\nPass {}: qualifier = {qual}", pi + 1);
             } else {
-                eprintln!("\nPass {} (unqualified):", pi + 1);
+                println!("\nPass {} (unqualified):", pi + 1);
             }
         }
-        eprintln!("\nWeight tables: {}", table_ids_str.join(", "));
-        eprintln!(
+        println!("\nWeight tables: {}", table_ids_str.join(", "));
+        println!(
             "Output location: cols {}-{} ({} decimal places, {} chars wide)",
             d.col_start,
             d.col_end,
@@ -198,20 +198,20 @@ fn print_spec_summary(spec: &ParsedWeightSpec) {
             d.field_width()
         );
         if let Some(total) = d.total {
-            eprintln!("TOTAL scaling: {total}");
+            println!("TOTAL scaling: {total}");
         }
         if d.retain {
             if let Some((cs, ce)) = spec.cweight_cols {
-                eprintln!("RETAIN: base weights from cols {cs}:{ce}");
+                println!("RETAIN: base weights from cols {cs}:{ce}");
             } else {
-                eprintln!("RETAIN: (no CWEIGHT location found)");
+                println!("RETAIN: (no CWEIGHT location found)");
             }
         }
     }
 
     for table in &spec.tables {
         let target_sum: f64 = table.categories.iter().map(|c| c.target).sum();
-        eprintln!(
+        println!(
             "  Table {:>3}: {:>2} categories, targets sum = {:.2}",
             table.id,
             table.categories.len(),
@@ -220,9 +220,9 @@ fn print_spec_summary(spec: &ParsedWeightSpec) {
     }
 
     if !spec.moves.is_empty() {
-        eprintln!();
+        println!();
         for m in &spec.moves {
-            eprintln!(
+            println!(
                 "MOVE {}:{} TO {} ({} chars)",
                 m.from_start,
                 m.from_end,
@@ -233,18 +233,18 @@ fn print_spec_summary(spec: &ParsedWeightSpec) {
     }
 
     if !spec.assignments.is_empty() {
-        eprint!("\nColumn assignments:");
+        print!("\nColumn assignments:");
         for a in &spec.assignments {
-            eprintln!(" IF({}) 1!{}={}", a.cond_str, a.col, a.value);
+            println!(" IF({}) 1!{}={}", a.cond_str, a.col, a.value);
         }
     }
 }
 
 fn print_convergence(converged: bool, iterations: usize, residual: f64, label: &str) {
     if converged {
-        eprintln!("{label} converged in {iterations} iterations (residual: {residual:.2e})");
+        println!("{label} converged in {iterations} iterations (residual: {residual:.2e})");
     } else {
-        eprintln!(
+        println!(
             "Warning: {label} did not converge after {iterations} iterations (residual: {residual:.2e})"
         );
     }
@@ -276,7 +276,7 @@ fn compute_all_weights(
     let has_qualifiers = spec.passes.iter().any(|p| p.qualifier.is_some());
 
     if has_qualifiers {
-        eprintln!("\nRunning {} qualified pass(es)...", spec.passes.len());
+        println!("\nRunning {} qualified pass(es)...", spec.passes.len());
         let multi = compute_weights_multi_pass(
             &spec.passes,
             &spec.tables,
@@ -336,10 +336,10 @@ fn print_weight_stats(weights: &[Option<f64>], n_records: usize) {
     let max = raked.iter().copied().fold(f64::NEG_INFINITY, f64::max);
     #[allow(clippy::cast_precision_loss)]
     let mean = sum / raked.len() as f64;
-    eprintln!("\nWeighted records: {} / {n_records}", raked.len());
-    eprintln!("Weight range: {min:.4} - {max:.4}");
-    eprintln!("Weight mean:  {mean:.4}");
-    eprintln!("Weight sum:   {sum:.2}");
+    println!("\nWeighted records: {} / {n_records}", raked.len());
+    println!("Weight range: {min:.4} - {max:.4}");
+    println!("Weight mean:  {mean:.4}");
+    println!("Weight sum:   {sum:.2}");
 }
 
 fn write_output(
