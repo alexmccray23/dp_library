@@ -233,6 +233,7 @@ dependencies = [
  "calamine",
  "clap",
  "ipf_survey",
+ "rayon",
  "regex",
 ]
 

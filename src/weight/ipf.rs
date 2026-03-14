@@ -6,6 +6,7 @@ use ipf_survey::{
 };
 
 use ahash::AHashMap;
+use rayon::prelude::*;
 
 use crate::cfmc::CfmcLogic;
 use crate::rfl::{RflFile, RflQuestion};
@@ -174,7 +175,7 @@ impl std::error::Error for WeightError {
 pub fn compute_weights(
     scheme: &WeightScheme,
     rfl: Option<&RflFile>,
-    data: &[impl AsRef<str>],
+    data: &[impl AsRef<str> + Sync],
 ) -> Result<Vec<f64>, WeightError> {
     let (survey, targets) = classify(scheme, rfl, data)?;
     rake_classified(&survey, &targets, &scheme.config.raking)
@@ -200,7 +201,7 @@ pub fn compute_weights_multi_pass(
     tables: &[WeightTable],
     config: &WeightConfig,
     rfl: Option<&RflFile>,
-    data: &[impl AsRef<str>],
+    data: &[impl AsRef<str> + Sync],
 ) -> Result<MultiPassResult, WeightError> {
     let mut weights: Vec<Option<f64>> = vec![None; data.len()];
     let mut pass_results: Vec<RakingResult> = Vec::new();
@@ -359,7 +360,7 @@ fn extract_base_weights(
 pub fn classify(
     scheme: &WeightScheme,
     rfl: Option<&RflFile>,
-    data: &[impl AsRef<str>],
+    data: &[impl AsRef<str> + Sync],
 ) -> Result<(CodedSurvey, ValidatedTargets), WeightError> {
     let n_records = data.len();
     let n_tables = scheme.tables.len();
@@ -368,51 +369,61 @@ pub fn classify(
     let base_weights = extract_base_weights(&scheme.config, rfl, data)?;
 
     // Classify: flat codes array, row-major (record × table).
-    let mut codes = vec![0usize; n_records * n_tables];
+    // Each record is independent, so we classify in parallel.
+    let codes: Vec<usize> = data
+        .par_iter()
+        .enumerate()
+        .map(|(r, line)| {
+            let line = line.as_ref();
+            let mut row = vec![0usize; n_tables];
+            for (t, table) in scheme.tables.iter().enumerate() {
+                let mut matched_indices: Vec<usize> = Vec::new();
 
-    for (r, line) in data.iter().enumerate() {
-        let line = line.as_ref();
-        for (t, table) in scheme.tables.iter().enumerate() {
-            let mut matched_indices: Vec<usize> = Vec::new();
-
-            for (c, category) in table.categories.iter().enumerate() {
-                let hit = category.condition.evaluate(questions, line).map_err(|e| {
-                    WeightError::ConditionEval {
-                        table_id: table.id,
-                        row_label: category.label.clone(),
-                        record: r,
-                        source: e,
+                for (c, category) in table.categories.iter().enumerate() {
+                    let hit =
+                        category
+                            .condition
+                            .evaluate(questions, line)
+                            .map_err(|e| WeightError::ConditionEval {
+                                table_id: table.id,
+                                row_label: category.label.clone(),
+                                record: r,
+                                source: e,
+                            })?;
+                    if hit {
+                        matched_indices.push(c);
                     }
-                })?;
-                if hit {
-                    matched_indices.push(c);
                 }
-            }
 
-            match matched_indices.len() {
-                0 => {
-                    return Err(WeightError::Unclassified {
-                        table_id: table.id,
-                        record: r,
-                    });
-                }
-                1 => {
-                    codes[r * n_tables + t] = matched_indices[0];
-                }
-                _ => {
-                    let labels = matched_indices
-                        .iter()
-                        .map(|&c| table.categories[c].label.clone())
-                        .collect();
-                    return Err(WeightError::MultipleMatches {
-                        table_id: table.id,
-                        record: r,
-                        matched: labels,
-                    });
+                match matched_indices.len() {
+                    0 => {
+                        return Err(WeightError::Unclassified {
+                            table_id: table.id,
+                            record: r,
+                        });
+                    }
+                    1 => {
+                        row[t] = matched_indices[0];
+                    }
+                    _ => {
+                        let labels = matched_indices
+                            .iter()
+                            .map(|&c| table.categories[c].label.clone())
+                            .collect();
+                        return Err(WeightError::MultipleMatches {
+                            table_id: table.id,
+                            record: r,
+                            matched: labels,
+                        });
+                    }
                 }
             }
-        }
-    }
+            Ok(row)
+        })
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .flatten()
+        .collect();
 
     // Build ipf_survey Variable descriptors — one per weight table.
     let variables: Vec<Variable> = scheme
