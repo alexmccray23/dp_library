@@ -700,7 +700,6 @@ impl BannersTables {
         let mut current_table: Option<BannersTable> = None;
         let mut age_question = String::new();
         let mut group_title = String::new();
-        let mut age_title = String::new();
         let mut region_title = String::new();
         let mut region_question = String::new();
 
@@ -724,9 +723,6 @@ impl BannersTables {
             } else {
                 title.clone()
             };
-            if group_title == "AGE" || group_title == "AGE II" {
-                age_title.clone_from(&title);
-            }
             if group_title.contains("REGION") {
                 region_title.clone_from(&title);
             }
@@ -739,7 +735,7 @@ impl BannersTables {
                 "ALL".to_string()
             };
 
-            Self::fix_agegroups(&mut specs, &age_title, &subtitle, &mut age_question);
+            Self::fix_agegroups(&mut specs, &subtitle, &mut age_question);
             Self::fix_national_regions(&mut specs, &region_title, &subtitle, &mut region_question);
 
             // Check if this starts a new table
@@ -791,46 +787,45 @@ impl BannersTables {
 
     fn fix_agegroups(
         specs: &mut String,
-        age_title: &str,
         subtitle: &str,
         age_question: &mut String,
     ) {
-        // Handle AGE question special case
-        if age_title == "AGE" || age_title == "AGE II" {
-            age_question.clone_from(specs);
-        }
-
-        // Handle age group substitutions
-        if subtitle.contains("18-34") {
-            *specs = specs.replace(&*age_question, "AGEGROUP:1-2");
-        } else if subtitle.contains("18-44") {
-            *specs = specs.replace(&*age_question, "AGEGROUP:1-3");
-        } else if subtitle.contains("18-54") {
-            *specs = specs.replace(&*age_question, "AGEGROUP:1-4");
-        } else if subtitle.contains("35-44") {
-            *specs = specs.replace(&*age_question, "AGEGROUP:3");
-        } else if subtitle.contains("35-54") {
-            *specs = specs.replace(&*age_question, "AGEGROUP:3-4");
-        } else if subtitle.contains("45-54") {
-            *specs = specs.replace(&*age_question, "AGEGROUP:4");
-        } else if subtitle.contains("45-64") {
-            *specs = specs.replace(&*age_question, "AGEGROUP:4-5");
-        } else if subtitle.contains("45+") {
-            *specs = specs.replace(&*age_question, "AGEGROUP:4-6");
-        } else if subtitle.contains("55-64") {
-            *specs = specs.replace(&*age_question, "AGEGROUP:5");
-        } else if subtitle.contains("55+") {
-            *specs = specs.replace(&*age_question, "AGEGROUP:5-6");
-        } else if subtitle.contains("65+") {
-            *specs = specs.replace(&*age_question, "AGEGROUP:6");
-        } else if subtitle.contains("18-49") {
-            *specs = specs.replace(&*age_question, "(QAGE:18-49 OR AGEGROUP:1-3)");
-        } else if subtitle.contains("50+") {
-            *specs = specs.replace(&*age_question, "(QAGE:50-110 OR AGEGROUP:5-6)");
-        } else if subtitle.contains("35-49") {
-            *specs = specs.replace(&*age_question, "(QAGE:35-49 OR AGEGROUP:3)");
-        } else if subtitle.contains("50-64") {
-            *specs = specs.replace(&*age_question, "(QAGE:50-64 OR AGEGROUP:5)");
+        for part in ["D1", "AGE"] {
+            age_question.clone_from(&part.to_string());
+            // Handle age group substitutions
+            if !specs.contains("AGEGROUP:") {
+                if subtitle.contains("18-34") {
+                    *specs = specs.replace(&*age_question, "AGEGROUP:1-2");
+                } else if subtitle.contains("18-44") {
+                    *specs = specs.replace(&*age_question, "AGEGROUP:1-3");
+                } else if subtitle.contains("18-54") {
+                    *specs = specs.replace(&*age_question, "AGEGROUP:1-4");
+                } else if subtitle.contains("35-44") {
+                    *specs = specs.replace(&*age_question, "AGEGROUP:3");
+                } else if subtitle.contains("35-54") {
+                    *specs = specs.replace(&*age_question, "AGEGROUP:3-4");
+                } else if subtitle.contains("45-54") {
+                    *specs = specs.replace(&*age_question, "AGEGROUP:4");
+                } else if subtitle.contains("45-64") {
+                    *specs = specs.replace(&*age_question, "AGEGROUP:4-5");
+                } else if subtitle.contains("45+") {
+                    *specs = specs.replace(&*age_question, "AGEGROUP:4-6");
+                } else if subtitle.contains("55-64") {
+                    *specs = specs.replace(&*age_question, "AGEGROUP:5");
+                } else if subtitle.contains("55+") {
+                    *specs = specs.replace(&*age_question, "AGEGROUP:5-6");
+                } else if subtitle.contains("65+") {
+                    *specs = specs.replace(&*age_question, "AGEGROUP:6");
+                } else if subtitle.contains("18-49") {
+                    *specs = specs.replace(&*age_question, "(QAGE:18-49 OR AGEGROUP:1-3)");
+                } else if subtitle.contains("50+") {
+                    *specs = specs.replace(&*age_question, "(QAGE:50-110 OR AGEGROUP:5-6)");
+                } else if subtitle.contains("35-49") {
+                    *specs = specs.replace(&*age_question, "(QAGE:35-49 OR AGEGROUP:3)");
+                } else if subtitle.contains("50-64") {
+                    *specs = specs.replace(&*age_question, "(QAGE:50-64 OR AGEGROUP:5)");
+                }
+            }
         }
     }
 
