@@ -55,6 +55,13 @@ struct OutputFormat {
     decimal_width: usize,
 }
 
+/// A single pass's weights paired with its output column format.
+struct PassOutput {
+    label: String,
+    format: OutputFormat,
+    weights: Vec<Option<f64>>,
+}
+
 fn find_file_with_extension(dir: &str, extensions: &[&str]) -> Option<String> {
     let path = Path::new(dir);
     if let Ok(entries) = std::fs::read_dir(path) {
@@ -250,11 +257,91 @@ fn print_convergence(converged: bool, iterations: usize, residual: f64, label: &
     }
 }
 
+/// Returns true when all passes target the same output columns.
+fn all_same_output_cols(passes: &[dp_library::weight::QualifiedWeightPass]) -> bool {
+    passes.windows(2).all(|w| {
+        w[0].directive.col_start == w[1].directive.col_start
+            && w[0].directive.col_end == w[1].directive.col_end
+    })
+}
+
+/// Multi-column mode: each pass is an independent raking over all records,
+/// writing to its own output columns. Passes are raked in parallel.
+fn compute_multi_column(
+    spec: &ParsedWeightSpec,
+    base_config: &WeightConfig,
+    rfl: Option<&RflFile>,
+    data: &[String],
+) -> Vec<PassOutput> {
+    use rayon::prelude::*;
+
+    println!(
+        "\nRunning {} independent column passes...",
+        spec.passes.len()
+    );
+
+    spec.passes
+        .par_iter()
+        .enumerate()
+        .map(|(pi, pass)| {
+            let d = &pass.directive;
+            let label = format!("Pass {} (cols {}:{})", pi + 1, d.col_start, d.col_end);
+
+            // Select only the tables referenced by this pass.
+            let pass_tables: Vec<_> = d
+                .table_ids
+                .iter()
+                .filter_map(|id| spec.tables.iter().find(|t| t.id == *id).cloned())
+                .collect();
+
+            let normalization = d.total.map_or(
+                ipf_survey::Normalization::SumToN,
+                ipf_survey::Normalization::SumTo,
+            );
+            let scheme = WeightScheme {
+                tables: pass_tables,
+                config: WeightConfig {
+                    raking: RakingConfig {
+                        normalization,
+                        ..base_config.raking.clone()
+                    },
+                    ..base_config.clone()
+                },
+            };
+
+            let (survey, targets) = classify(&scheme, rfl, data).unwrap_or_else(|e| {
+                eprintln!("\n{label} classification error: {e}");
+                process::exit(1);
+            });
+
+            let result = rake_classified_full(&survey, &targets, &scheme.config.raking)
+                .unwrap_or_else(|e| {
+                    eprintln!("\n{label} raking error: {e}");
+                    process::exit(1);
+                });
+
+            let c = &result.convergence;
+            print_convergence(c.converged, c.iterations, c.final_residual, &label);
+
+            PassOutput {
+                label,
+                format: OutputFormat {
+                    col_start: d.col_start,
+                    col_end: d.col_end,
+                    field_width: d.field_width(),
+                    decimal_width: d.decimal_width,
+                },
+                weights: result.weights.into_iter().map(Some).collect(),
+            }
+        })
+        .collect()
+}
+
 fn compute_all_weights(
     spec: &mut ParsedWeightSpec,
     rfl: Option<&RflFile>,
     data: &[String],
-) -> Vec<Option<f64>> {
+) -> Vec<PassOutput> {
     // If any pass has RETAIN and a CWEIGHT location is defined, use the
     // prior weight columns as base weights for raking.
     let has_retain = spec.passes.iter().any(|p| p.directive.retain);
@@ -274,8 +361,12 @@ fn compute_all_weights(
     };
 
     let has_qualifiers = spec.passes.iter().any(|p| p.qualifier.is_some());
+    let multi_column =
+        spec.passes.len() > 1 && !has_qualifiers && !all_same_output_cols(&spec.passes);
 
-    if has_qualifiers {
+    if multi_column {
+        compute_multi_column(spec, &base_config, rfl, data)
+    } else if has_qualifiers {
         println!("\nRunning {} qualified pass(es)...", spec.passes.len());
         let multi = compute_weights_multi_pass(
             &spec.passes,
@@ -294,7 +385,17 @@ fn compute_all_weights(
             print_convergence(c.converged, c.iterations, c.final_residual, &format!("Pass {}", i + 1));
         }
 
-        multi.weights
+        let d = &spec.passes[0].directive;
+        vec![PassOutput {
+            label: String::new(),
+            format: OutputFormat {
+                col_start: d.col_start,
+                col_end: d.col_end,
+                field_width: d.field_width(),
+                decimal_width: d.decimal_width,
+            },
+            weights: multi.weights,
+        }]
     } else {
         let normalization = spec.passes[0].directive.total.map_or(
             ipf_survey::Normalization::SumToN,
@@ -325,17 +426,30 @@ fn compute_all_weights(
         let c = &result.convergence;
         print_convergence(c.converged, c.iterations, c.final_residual, "Raking");
 
-        result.weights.into_iter().map(Some).collect()
+        let d = &spec.passes[0].directive;
+        vec![PassOutput {
+            label: String::new(),
+            format: OutputFormat {
+                col_start: d.col_start,
+                col_end: d.col_end,
+                field_width: d.field_width(),
+                decimal_width: d.decimal_width,
+            },
+            weights: result.weights.into_iter().map(Some).collect(),
+        }]
     }
 }
 
-fn print_weight_stats(weights: &[Option<f64>], n_records: usize) {
+fn print_weight_stats(weights: &[Option<f64>], n_records: usize, label: &str) {
     let raked: Vec<f64> = weights.iter().filter_map(|w| *w).collect();
     let sum: f64 = raked.iter().sum();
     let min = raked.iter().copied().fold(f64::INFINITY, f64::min);
     let max = raked.iter().copied().fold(f64::NEG_INFINITY, f64::max);
     #[allow(clippy::cast_precision_loss)]
     let mean = sum / raked.len() as f64;
+    if !label.is_empty() {
+        println!("\n{label}:");
+    }
     println!("\nWeighted records: {} / {n_records}", raked.len());
     println!("Weight range: {min:.4} - {max:.4}");
     println!("Weight mean:  {mean:.4}");
@@ -345,8 +459,7 @@ fn print_weight_stats(weights: &[Option<f64>], n_records: usize) {
 fn write_output(
     path: &str,
     data: &[String],
-    weights: &[Option<f64>],
-    fmt: &OutputFormat,
+    pass_outputs: &[PassOutput],
     assignments: &[ColumnAssignment],
 ) {
     let out = File::create(path).unwrap_or_else(|e| {
@@ -355,10 +468,12 @@ fn write_output(
     });
     let mut writer = BufWriter::new(out);
 
-    for (line, weight) in data.iter().zip(weights.iter()) {
-        let mut output_line = weight.map_or_else(
-            || line.clone(),
-            |w| {
+    for (i, line) in data.iter().enumerate() {
+        let mut output_line = line.clone();
+
+        for po in pass_outputs {
+            if let Some(w) = po.weights[i] {
+                let fmt = &po.format;
                 let weight_str = format_weight(w, fmt.field_width, fmt.decimal_width);
                 if weight_str.len() > fmt.field_width {
                     eprintln!(
@@ -366,9 +481,9 @@ fn write_output(
                         fmt.field_width
                     );
                 }
-                punch_weight(line, &weight_str, fmt.col_start, fmt.col_end)
-            },
-        );
+                output_line = punch_weight(&output_line, &weight_str, fmt.col_start, fmt.col_end);
+            }
+        }
 
         for a in assignments {
             if a.condition.evaluate(&output_line).unwrap_or(false) {
@@ -419,20 +534,14 @@ fn main() {
         }
     }
 
-    let out_fmt = OutputFormat {
-        col_start: spec.passes[0].directive.col_start,
-        col_end: spec.passes[0].directive.col_end,
-        field_width: spec.passes[0].directive.field_width(),
-        decimal_width: spec.passes[0].directive.decimal_width,
-    };
-
-    let weights = compute_all_weights(&mut spec, rfl.as_ref(), &data);
-    print_weight_stats(&weights, data.len());
+    let pass_outputs = compute_all_weights(&mut spec, rfl.as_ref(), &data);
+    for po in &pass_outputs {
+        print_weight_stats(&po.weights, data.len(), &po.label);
+    }
     write_output(
         &files.output_file,
         &data,
-        &weights,
-        &out_fmt,
+        &pass_outputs,
         &spec.assignments,
     );
 }

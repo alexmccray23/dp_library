@@ -29,12 +29,14 @@ pub struct MultiPassResult {
     pub pass_results: Vec<RakingResult>,
 }
 
+#[derive(Clone)]
 pub struct WeightTable {
     pub id: u16,
     pub label: Option<String>,
     pub categories: Vec<WeightCategory>,
 }
 
+#[derive(Clone)]
 pub struct WeightCategory {
     pub label: String,
     pub condition: WeightCondition,
@@ -64,6 +66,7 @@ impl WeightCondition {
     }
 }
 
+#[derive(Clone)]
 pub struct WeightConfig {
     pub raking: RakingConfig,
     /// Raw column range (1-based, inclusive) containing a prior weight to use as
