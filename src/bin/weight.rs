@@ -155,19 +155,23 @@ fn format_weight(value: f64, width: usize, decimal: usize) -> String {
 }
 
 fn punch_weight(line: &str, weight_str: &str, col_start: usize, col_end: usize) -> String {
-    let start_idx = col_start - 1; // 1-based → 0-based
-    let end_idx = col_end; // col_end is 1-based inclusive, so byte index = col_end
+    use dp_library::weight::char_to_byte;
+    let char_start = col_start - 1; // 1-based → 0-based char index
+    let char_end = col_end; // col_end is 1-based inclusive → 0-based exclusive
 
-    // Ensure the line is long enough.
-    let mut buf = if line.len() < end_idx {
+    // Ensure the line has enough characters.
+    let char_count = line.chars().count();
+    let mut buf = if char_count < char_end {
         let mut s = line.to_string();
-        s.extend(std::iter::repeat_n(' ', end_idx - s.len()));
+        s.extend(std::iter::repeat_n(' ', char_end - char_count));
         s
     } else {
         line.to_string()
     };
 
-    buf.replace_range(start_idx..end_idx, weight_str);
+    let byte_start = char_to_byte(&buf, char_start);
+    let byte_end = char_to_byte(&buf, char_end);
+    buf.replace_range(byte_start..byte_end, weight_str);
     buf
 }
 
@@ -487,12 +491,15 @@ fn write_output(
 
         for a in assignments {
             if a.condition.evaluate(&output_line).unwrap_or(false) {
-                let idx = a.col - 1; // 1-based → 0-based
-                let end = idx + a.value.len();
-                if output_line.len() < end {
-                    output_line.extend(std::iter::repeat_n(' ', end - output_line.len()));
+                let char_start = a.col - 1; // 1-based → 0-based char index
+                let char_end = char_start + a.value.chars().count();
+                let char_count = output_line.chars().count();
+                if char_count < char_end {
+                    output_line.extend(std::iter::repeat_n(' ', char_end - char_count));
                 }
-                output_line.replace_range(idx..end, &a.value);
+                let byte_start = dp_library::weight::char_to_byte(&output_line, char_start);
+                let byte_end = dp_library::weight::char_to_byte(&output_line, char_end);
+                output_line.replace_range(byte_start..byte_end, &a.value);
             }
         }
 

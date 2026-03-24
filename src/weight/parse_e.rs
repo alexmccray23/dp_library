@@ -65,31 +65,33 @@ impl MoveDirective {
     #[must_use]
     pub fn apply(&self, line: &str) -> String {
         let w = self.width();
-        let src_start = self.from_start - 1; // 0-based
-        let dst_start = self.to_start - 1;
-        let dst_end = dst_start + w;
+        let char_count = line.chars().count();
 
-        // Extract source bytes (pad with spaces if line is too short).
-        let src: String = if line.len() >= self.from_end {
-            line[src_start..self.from_end].to_string()
-        } else if line.len() > src_start {
-            let mut s = line[src_start..].to_string();
-            s.extend(std::iter::repeat_n(' ', self.from_end - line.len()));
+        // Extract source characters (pad with spaces if line is too short).
+        let src: String = if char_count >= self.from_end {
+            super::char_substr(line, self.from_start, self.from_end).to_string()
+        } else if char_count >= self.from_start {
+            let partial = super::char_substr(line, self.from_start, char_count);
+            let mut s = partial.to_string();
+            s.extend(std::iter::repeat_n(' ', self.from_end - char_count));
             s
         } else {
             " ".repeat(w)
         };
 
-        // Ensure line is long enough for the destination.
-        let mut buf = if line.len() < dst_end {
+        // Ensure line has enough characters for the destination.
+        let dst_char_end = self.to_start - 1 + w; // 0-based exclusive
+        let mut buf = if char_count < dst_char_end {
             let mut s = line.to_string();
-            s.extend(std::iter::repeat_n(' ', dst_end - s.len()));
+            s.extend(std::iter::repeat_n(' ', dst_char_end - char_count));
             s
         } else {
             line.to_string()
         };
 
-        buf.replace_range(dst_start..dst_end, &src);
+        let byte_start = super::char_to_byte(&buf, self.to_start - 1);
+        let byte_end = super::char_to_byte(&buf, dst_char_end);
+        buf.replace_range(byte_start..byte_end, &src);
         buf
     }
 }

@@ -323,20 +323,13 @@ fn extract_base_weights(
     data: &[impl AsRef<str>],
 ) -> Result<Option<Vec<f64>>, WeightError> {
     if let Some((col_start, col_end)) = config.base_weight_columns {
-        let start_idx = col_start - 1; // 1-based → 0-based
         let label = format!("cols {col_start}:{col_end}");
         let weights: Result<Vec<f64>, WeightError> = data
             .iter()
             .enumerate()
             .map(|(r, line)| {
                 let line = line.as_ref();
-                let raw = if line.len() >= col_end {
-                    line[start_idx..col_end].trim()
-                } else if line.len() > start_idx {
-                    line[start_idx..].trim()
-                } else {
-                    ""
-                };
+                let raw = super::char_substr(line, col_start, col_end).trim();
                 raw.parse::<f64>().map_err(|_| WeightError::BaseWeightField {
                     field: label.clone(),
                     record: r,

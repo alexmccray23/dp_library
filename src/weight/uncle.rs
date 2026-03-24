@@ -197,9 +197,10 @@ impl CodeVal {
 
 impl PQual {
     fn evaluate(&self, record: &str) -> Result<bool, String> {
-        let idx = self.col - 1;
-        // Out-of-range columns evaluate to blank/absent.
-        let byte = record.as_bytes().get(idx).copied().unwrap_or(b' ');
+        // Get the character at the 1-based column position.
+        let ch = record.chars().nth(self.col - 1).unwrap_or(' ');
+        // Single-punch codes are always ASCII, so convert to byte for matching.
+        let byte = if ch.is_ascii() { ch as u8 } else { b' ' };
 
         match self.relation {
             Relation::Has => Ok(self.codes.iter().any(|c| c.matches_byte(byte))),
@@ -216,7 +217,7 @@ impl RQual {
             // Concatenate the characters at the specified columns.
             let field_str: String = field_cols
                 .iter()
-                .filter_map(|&col| record.as_bytes().get(col - 1).map(|&b| b as char))
+                .map(|&col| record.chars().nth(col - 1).unwrap_or(' '))
                 .collect();
 
             // The field is right-aligned: trim leading whitespace/zeros and parse as integer.
@@ -249,9 +250,9 @@ impl RValue {
 
 impl LiteralMatch {
     fn evaluate(&self, record: &str) -> bool {
-        let start = self.start_col - 1;
-        let end = start + self.value.len();
-        record.get(start..end).is_some_and(|s| s == self.value)
+        let end_col = self.start_col - 1 + self.value.len();
+        let slice = super::char_substr(record, self.start_col, end_col);
+        slice == self.value
     }
 }
 
