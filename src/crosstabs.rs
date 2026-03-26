@@ -84,9 +84,15 @@ impl CrossTabsLogic {
             logic = converted;
         }
 
-        // Handle "):" syntax...
-        if logic.contains("):") {
-            logic = logic.replace("):", ":") + ")";
+        // Handle "):" syntax — move each closing paren to after the code spec
+        // that follows. E.g., "(Q5 OR Q6):1,2" becomes "(Q5 OR Q6:1,2)".
+        while let Some(pos) = logic.find("):") {
+            logic.remove(pos); // remove ')' — ':' is now at pos
+            let codes_start = pos + 1; // skip ':'
+            let codes_end = logic[codes_start..]
+                .find([' ', ')', '('])
+                .map_or(logic.len(), |i| codes_start + i);
+            logic.insert(codes_end, ')');
         }
 
         Ok(Self::parse_simple(&logic))
@@ -209,7 +215,8 @@ impl CrossTabsLogic {
 
     fn is_balanced_parentheses(logic: &str) -> bool {
         let mut depth = 0;
-        for c in logic.chars() {
+        let chars: Vec<char> = logic.chars().collect();
+        for (i, &c) in chars.iter().enumerate() {
             match c {
                 '(' => depth += 1,
                 ')' => {
@@ -217,8 +224,8 @@ impl CrossTabsLogic {
                     if depth < 0 {
                         return false;
                     }
-                    // If we reach 0 before the end, the outer parens don't wrap everything
-                    if depth == 0 && c != logic.chars().last().unwrap_or(' ') {
+                    // If we reach 0 before the last character, the outer parens don't wrap everything
+                    if depth == 0 && i != chars.len() - 1 {
                         return false;
                     }
                 }
@@ -419,11 +426,7 @@ impl CrossTabsLogic {
         } else if let Some(ref right) = self.right {
             match value.as_str() {
                 "NOT" => {
-                    if right.is_leaf() {
-                        String::new()
-                    } else {
-                        format!("NOT{}", right.to_uncle_syntax(questions))
-                    }
+                    format!("NOT({})", right.to_uncle_syntax(questions))
                 }
                 _ => String::new(),
             }
@@ -785,6 +788,30 @@ impl BannersTables {
         Ok(Self { tables })
     }
 
+    /// Replace `word` only when it appears as a whole word (not as a substring
+    /// of a longer alphanumeric token).
+    fn replace_whole_word(input: &str, word: &str, replacement: &str) -> String {
+        let mut result = String::new();
+        let mut remaining = input;
+        while let Some(pos) = remaining.find(word) {
+            let before_ok =
+                pos == 0 || !remaining.as_bytes()[pos - 1].is_ascii_alphanumeric();
+            let after_pos = pos + word.len();
+            let after_ok = after_pos >= remaining.len()
+                || !remaining.as_bytes()[after_pos].is_ascii_alphanumeric();
+
+            if before_ok && after_ok {
+                result.push_str(&remaining[..pos]);
+                result.push_str(replacement);
+            } else {
+                result.push_str(&remaining[..after_pos]);
+            }
+            remaining = &remaining[after_pos..];
+        }
+        result.push_str(remaining);
+        result
+    }
+
     fn fix_agegroups(
         specs: &mut String,
         subtitle: &str,
@@ -794,36 +821,42 @@ impl BannersTables {
             age_question.clone_from(&part.to_string());
             // Handle age group substitutions
             if !specs.contains("AGEGROUP:") {
-                if subtitle.contains("18-34") {
-                    *specs = specs.replace(&*age_question, "AGEGROUP:1-2");
+                let replacement = if subtitle.contains("18-34") {
+                    Some("AGEGROUP:1-2")
                 } else if subtitle.contains("18-44") {
-                    *specs = specs.replace(&*age_question, "AGEGROUP:1-3");
+                    Some("AGEGROUP:1-3")
                 } else if subtitle.contains("18-54") {
-                    *specs = specs.replace(&*age_question, "AGEGROUP:1-4");
+                    Some("AGEGROUP:1-4")
                 } else if subtitle.contains("35-44") {
-                    *specs = specs.replace(&*age_question, "AGEGROUP:3");
+                    Some("AGEGROUP:3")
                 } else if subtitle.contains("35-54") {
-                    *specs = specs.replace(&*age_question, "AGEGROUP:3-4");
+                    Some("AGEGROUP:3-4")
                 } else if subtitle.contains("45-54") {
-                    *specs = specs.replace(&*age_question, "AGEGROUP:4");
+                    Some("AGEGROUP:4")
                 } else if subtitle.contains("45-64") {
-                    *specs = specs.replace(&*age_question, "AGEGROUP:4-5");
+                    Some("AGEGROUP:4-5")
                 } else if subtitle.contains("45+") {
-                    *specs = specs.replace(&*age_question, "AGEGROUP:4-6");
+                    Some("AGEGROUP:4-6")
                 } else if subtitle.contains("55-64") {
-                    *specs = specs.replace(&*age_question, "AGEGROUP:5");
+                    Some("AGEGROUP:5")
                 } else if subtitle.contains("55+") {
-                    *specs = specs.replace(&*age_question, "AGEGROUP:5-6");
+                    Some("AGEGROUP:5-6")
                 } else if subtitle.contains("65+") {
-                    *specs = specs.replace(&*age_question, "AGEGROUP:6");
+                    Some("AGEGROUP:6")
                 } else if subtitle.contains("18-49") {
-                    *specs = specs.replace(&*age_question, "(QAGE:18-49 OR AGEGROUP:1-3)");
+                    Some("(QAGE:18-49 OR AGEGROUP:1-3)")
                 } else if subtitle.contains("50+") {
-                    *specs = specs.replace(&*age_question, "(QAGE:50-110 OR AGEGROUP:5-6)");
+                    Some("(QAGE:50-110 OR AGEGROUP:5-6)")
                 } else if subtitle.contains("35-49") {
-                    *specs = specs.replace(&*age_question, "(QAGE:35-49 OR AGEGROUP:3)");
+                    Some("(QAGE:35-49 OR AGEGROUP:3)")
                 } else if subtitle.contains("50-64") {
-                    *specs = specs.replace(&*age_question, "(QAGE:50-64 OR AGEGROUP:5)");
+                    Some("(QAGE:50-64 OR AGEGROUP:5)")
+                } else {
+                    None
+                };
+
+                if let Some(replacement) = replacement {
+                    *specs = Self::replace_whole_word(specs, age_question, replacement);
                 }
             }
         }
