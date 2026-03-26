@@ -14,10 +14,11 @@ use ipf_survey::RakingConfig;
 #[derive(Parser, Debug)]
 #[command(
     name = "weight",
-    about = "Compute raking weights from UNCLE weight tables"
+    author = "Alex McCray",
+    about = "Weights the data based on Uncle E-file weight tables"
 )]
 struct Args {
-    /// Control table ID (e.g., 600)
+    /// Weighting control table number (e.g., 600, 620)
     table_id: u16,
 
     #[arg(short = 'e', long = "e-file", help = "Path to .E file")]
@@ -30,13 +31,13 @@ struct Args {
     )]
     data_file: Option<String>,
 
-    #[arg(short = 'l', long = "layout-file", help = "Path to .rfl file")]
+    #[arg(short = 'l', long = "layout-file", help = "Path to .rfl file (Only needed if E file uses cfmc syntax logic)")]
     layout_file: Option<String>,
 
     #[arg(
         short = 'o',
         long = "output",
-        help = "Output file path (default: <stem>.WT)"
+        help = "Output file path (default: <E-file stem>.WT)"
     )]
     output: Option<String>,
 }
@@ -116,7 +117,7 @@ fn resolve_inputs(args: &Args) -> ResolvedFiles {
     let output_file = args
         .output
         .clone()
-        .unwrap_or_else(|| default_output_name(&data_file));
+        .unwrap_or_else(|| default_output_name(&e_file));
 
     println!("E file:   {e_file}");
     if let Some(ref lf) = layout_file {
@@ -175,8 +176,8 @@ fn punch_weight(line: &str, weight_str: &str, col_start: usize, col_end: usize) 
     buf
 }
 
-fn default_output_name(data_file: &str) -> String {
-    let stem = Path::new(data_file)
+fn default_output_name(e_file: &str) -> String {
+    let stem = Path::new(e_file)
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("output");
