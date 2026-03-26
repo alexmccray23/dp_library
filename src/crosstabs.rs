@@ -147,6 +147,16 @@ impl CrossTabsLogic {
             };
         }
 
+        // Implicit AND: a '(' at paren-depth 0 preceded by a term, e.g.
+        // "D2:2 (D7A:2-4 & D7B:1)" → treat as "D2:2 & (D7A:2-4 & D7B:1)".
+        if let Some(split_pos) = Self::find_implicit_and(&logic) {
+            return Self {
+                value: Some("&".to_string()),
+                left: Some(Box::new(Self::parse_simple(&logic[..split_pos]))),
+                right: Some(Box::new(Self::parse_simple(logic[split_pos..].trim_start()))),
+            };
+        }
+
         // Handle parentheses with colon content (like Perl: m/(\().*?:/)
         if logic.starts_with('(') && logic.contains(':') {
             return Self {
@@ -208,6 +218,29 @@ impl CrossTabsLogic {
 
             if paren_depth == 0 && logic_chars[i..].starts_with(&op_chars) {
                 return Some(i);
+            }
+        }
+        None
+    }
+
+    /// Find an implicit AND: a `(` at paren-depth 0 that is preceded by a
+    /// non-empty term (not just whitespace or another opening paren).  Returns
+    /// the byte offset of the split point (end of the left-hand term, trimmed).
+    fn find_implicit_and(logic: &str) -> Option<usize> {
+        let mut depth = 0;
+        let mut has_content = false;
+        for (i, c) in logic.char_indices() {
+            match c {
+                '(' if depth == 0 => {
+                    if has_content {
+                        return Some(logic[..i].trim_end().len());
+                    }
+                    depth += 1;
+                }
+                '(' => depth += 1,
+                ')' => depth -= 1,
+                c if depth == 0 && !c.is_whitespace() => has_content = true,
+                _ => {}
             }
         }
         None
@@ -390,20 +423,34 @@ impl CrossTabsLogic {
                 }
                 "|" => {
                     if let Some(ref right) = self.right {
-                        format!("{} OR {}", left_str, right.to_uncle_syntax(questions))
+                        let right_str = right.to_uncle_syntax(questions);
+                        match (left_str.is_empty(), right_str.is_empty()) {
+                            (true, _) => right_str,
+                            (_, true) => left_str,
+                            _ => format!("{left_str} OR {right_str}"),
+                        }
                     } else {
                         left_str
                     }
                 }
                 "&" => {
                     if let Some(ref right) = self.right {
-                        format!("{} {}", left_str, right.to_uncle_syntax(questions))
+                        let right_str = right.to_uncle_syntax(questions);
+                        match (left_str.is_empty(), right_str.is_empty()) {
+                            (true, _) => right_str,
+                            (_, true) => left_str,
+                            _ => format!("{left_str} {right_str}"),
+                        }
                     } else {
                         left_str
                     }
                 }
                 "(" => {
-                    format!("({left_str})")
+                    if left_str.is_empty() {
+                        String::new()
+                    } else {
+                        format!("({left_str})")
+                    }
                 }
                 _ => {
                     if value.is_empty() {
@@ -1089,5 +1136,38 @@ mod tests {
 
         let complex_not = CrossTabsLogic::new("NOT(Q1:1 OR Q2:2)").unwrap();
         assert_eq!(complex_not.to_inorder(), "NOT(Q1:1 OR Q2:2)");
+    }
+
+    #[test]
+    fn test_implicit_and() {
+        // "D3:6-7 & D2:2 (D7A:2-4 & D7B:1)" should parse the same as
+        // "D3:6-7 & D2:2 & (D7A:2-4 & D7B:1)"
+        let implicit = CrossTabsLogic::new("D3:6-7 & D2:2 (D7A:2-4 & D7B:1)").unwrap();
+        let explicit = CrossTabsLogic::new("D3:6-7 & D2:2 & (D7A:2-4 & D7B:1)").unwrap();
+        assert_eq!(implicit.to_inorder(), explicit.to_inorder());
+    }
+
+    /// Build a minimal questions map for tests.
+    fn test_questions(entries: &[(&str, usize, usize)]) -> AHashMap<String, RflQuestion> {
+        let mut map = AHashMap::new();
+        for &(name, start_col, width) in entries {
+            map.insert(
+                name.to_string(),
+                RflQuestion::new_raw(name.to_string(), start_col, width),
+            );
+        }
+        map
+    }
+
+    #[test]
+    fn test_descriptive_text_dropped_in_uncle_syntax() {
+        // Descriptive labels like "(DENVER, NORTH SUBURBS, SOUTH/WEST SUBURBS)"
+        // should be silently dropped, leaving only the real logic.
+        let questions = test_questions(&[("D2", 87, 1)]);
+
+        let logic =
+            CrossTabsLogic::new("(DENVER, NORTH SUBURBS, SOUTH/WEST SUBURBS) & D2:1").unwrap();
+        let uncle = logic.to_uncle_syntax(&questions);
+        assert_eq!(uncle, "1!87-1");
     }
 }
