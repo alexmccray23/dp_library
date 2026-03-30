@@ -65,16 +65,31 @@ impl CrossTabsLogic {
 
         // Handle slash syntax: QX2/Q17:1 becomes QX2:1 OR Q17:1
         if logic.contains('/') {
-            logic = logic
-                .replace("/(", ":(")
-                .replace("/Q", ":Q")
-                .replace('/', " OR ");
-            if let Some(colon_pos) = logic.find(':')
-                && let Some(or_pos) = logic[colon_pos..].find(" OR ")
-            {
-                let actual_or_pos = colon_pos + or_pos;
-                let codes = &logic[colon_pos + 1..actual_or_pos];
-                logic = logic.replace(" OR ", &format!("{codes} OR "));
+            // Detect whether slashes separate question names with codes
+            // (e.g., QX2/Q17:1) vs. descriptive text (e.g., SOUTH/WEST)
+            let slash_terms_have_codes = logic
+                .split('/')
+                .any(|p| !p.contains(' ') && p.contains(':'));
+
+            logic = logic.replace("/(", ":(").replace('/', " OR ");
+
+            if slash_terms_have_codes {
+                // Propagate codes from the term that has them to all terms
+                let parts: Vec<&str> = logic.split(" OR ").collect();
+                if let Some(codes) = parts.iter().find_map(|p| p.find(':').map(|i| &p[i..])) {
+                    let codes = codes.to_string();
+                    logic = parts
+                        .iter()
+                        .map(|p| {
+                            if p.contains(':') {
+                                p.trim().to_string()
+                            } else {
+                                format!("{}{codes}", p.trim())
+                            }
+                        })
+                        .collect::<Vec<_>>()
+                        .join(" OR ");
+                }
             }
         }
         // Handle "DO NOT SELECT" patterns: "Q5: DO NOT SELECT :1 OR :3" -> "NOT(Q5:1,3)"
@@ -153,7 +168,9 @@ impl CrossTabsLogic {
             return Self {
                 value: Some("&".to_string()),
                 left: Some(Box::new(Self::parse_simple(&logic[..split_pos]))),
-                right: Some(Box::new(Self::parse_simple(logic[split_pos..].trim_start()))),
+                right: Some(Box::new(Self::parse_simple(
+                    logic[split_pos..].trim_start(),
+                ))),
             };
         }
 
@@ -751,7 +768,6 @@ impl BannersTables {
         let mut age_question = String::new();
         let mut group_title = String::new();
         let mut region_title = String::new();
-        let mut region_question = String::new();
 
         for (row_idx, row) in range.rows().enumerate() {
             if row.len() < 4 {
@@ -786,7 +802,7 @@ impl BannersTables {
             };
 
             Self::fix_agegroups(&mut specs, &subtitle, &mut age_question);
-            Self::fix_national_regions(&mut specs, &region_title, &subtitle, &mut region_question);
+            Self::fix_national_regions(&mut specs, &subtitle);
 
             // Check if this starts a new table
             if index.chars().any(|c| !c.is_ascii_digit()) || title == "TITLE" {
@@ -841,8 +857,7 @@ impl BannersTables {
         let mut result = String::new();
         let mut remaining = input;
         while let Some(pos) = remaining.find(word) {
-            let before_ok =
-                pos == 0 || !remaining.as_bytes()[pos - 1].is_ascii_alphanumeric();
+            let before_ok = pos == 0 || !remaining.as_bytes()[pos - 1].is_ascii_alphanumeric();
             let after_pos = pos + word.len();
             let after_ok = after_pos >= remaining.len()
                 || !remaining.as_bytes()[after_pos].is_ascii_alphanumeric();
@@ -859,11 +874,7 @@ impl BannersTables {
         result
     }
 
-    fn fix_agegroups(
-        specs: &mut String,
-        subtitle: &str,
-        age_question: &mut String,
-    ) {
+    fn fix_agegroups(specs: &mut String, subtitle: &str, age_question: &mut String) {
         for part in ["D1", "AGE"] {
             age_question.clone_from(&part.to_string());
             // Handle age group substitutions
@@ -911,52 +922,27 @@ impl BannersTables {
 
     fn fix_national_regions(
         specs: &mut String,
-        region_title: &str,
         subtitle: &str,
-        region_question: &mut String,
     ) {
-        // Handle region question special case
-        if region_title.contains("REGION") {
-            region_question.clone_from(specs);
-        }
 
         // Handle region substitutions
-        if subtitle.contains("NORTHEAST") {
-            *specs = specs.replace(
-                &*region_question,
-                "FIPSCOMB:09,23,25,33,44,50,10,11,24,34,36,42,54",
-            );
-        } else if subtitle.contains("MIDWEST") {
-            *specs = specs.replace(
-                &*region_question,
-                "FIPSCOMB:17,18,26,27,39,55,19,20,29,31,38,46",
-            );
-        } else if subtitle.contains("DEEP SOUTH") {
-            *specs = specs.replace(&*region_question, "FIPSCOMB:01,05,12,13,22,28,45");
-        } else if subtitle.contains("OUTER SOUTH") {
-            *specs = specs.replace(&*region_question, "FIPSCOMB:21,37,40,47,48,51");
-        } else if subtitle.contains("SOUTH") {
-            *specs = specs.replace(
-                &*region_question,
-                "FIPSCOMB:01,05,12,13,22,28,45,21,37,40,47,48,51",
-            );
-        } else if subtitle.contains("WEST") {
-            *specs = specs.replace(
-                &*region_question,
-                "FIPSCOMB:02,04,08,16,30,32,35,49,56,06,15,41,53",
-            );
-        } else if subtitle.contains("NEW ENGLAND") {
-            *specs = specs.replace(&*region_question, "FIPSCOMB:09,23,25,33,44,50");
-        } else if subtitle.contains("MID-ATLANTIC") {
-            *specs = specs.replace(&*region_question, "FIPSCOMB:10,11,24,34,36,42,54");
-        } else if subtitle.contains("GREAT LAKES") {
-            *specs = specs.replace(&*region_question, "FIPSCOMB:17,18,26,27,39,55");
-        } else if subtitle.contains("FARM BELT") {
-            *specs = specs.replace(&*region_question, "FIPSCOMB:19,20,29,31,38,46");
-        } else if subtitle.contains("MOUNTAIN") {
-            *specs = specs.replace(&*region_question, "FIPSCOMB:04,08,16,30,32,35,49,56");
-        } else if subtitle.contains("PACIFIC") {
-            *specs = specs.replace(&*region_question, "FIPSCOMB:02,06,15,41,53");
+        let region_spec = match subtitle {
+            "NORTHEAST" => " & FIPSCOMB:09,23,25,33,44,50,10,11,24,34,36,42,54",
+            "MIDWEST" => " & FIPSCOMB:17,18,26,27,39,55,19,20,29,31,38,46",
+            "SOUTH" => " & FIPSCOMB:01,05,12,13,22,28,45,21,37,40,47,48,51",
+            "WEST" => " & FIPSCOMB:02,04,08,16,30,32,35,49,56,06,15,41,53",
+            "NEW ENGLAND" => " & FIPSCOMB:09,23,25,33,44,50",
+            "MID-ATLANTIC" => " & FIPSCOMB:10,11,24,34,36,42,54",
+            "GREAT LAKES" => " & FIPSCOMB:17,18,26,27,39,55",
+            "DEEP SOUTH" => " & FIPSCOMB:01,05,12,13,22,28,45",
+            "OUTER SOUTH" => " & FIPSCOMB:21,37,40,47,48,51",
+            "FARM BELT" => " & FIPSCOMB:19,20,29,31,38,46",
+            "MOUNTAIN" => " & FIPSCOMB:04,08,16,30,32,35,49,56",
+            "PACIFIC" => " & FIPSCOMB:02,06,15,41,53",
+            _ => "",
+        };
+        if !region_spec.is_empty() {
+            specs.push_str(region_spec);
         }
     }
 
@@ -1157,6 +1143,21 @@ mod tests {
             );
         }
         map
+    }
+
+    #[test]
+    fn test_slash_syntax() {
+        // QX2/Q17:1 becomes QX2:1 OR Q17:1
+        let result = CrossTabsLogic::new("QX2/Q17:1").unwrap();
+        assert_eq!(result.to_inorder(), "QX2:1 OR Q17:1");
+
+        // Multiple codes: QX2/Q17:1,2 becomes QX2:1,2 OR Q17:1,2
+        let result = CrossTabsLogic::new("QX2/Q17:1,2").unwrap();
+        assert_eq!(result.to_inorder(), "QX2:1,2 OR Q17:1,2");
+
+        // Three-way slash: QA/QB/QC:3 becomes QA:3 OR QB:3 OR QC:3
+        let result = CrossTabsLogic::new("QA/QB/QC:3").unwrap();
+        assert_eq!(result.to_inorder(), "QA:3 OR QB:3 OR QC:3");
     }
 
     #[test]
