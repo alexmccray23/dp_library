@@ -531,13 +531,13 @@ impl CfmcLogic {
         response_line: &str,
     ) -> Result<bool, String> {
         // Try numeric evaluation for function calls
-        if let Some(left_val) = Self::evaluate_numeric_value(left, questions, response_line)? {
-            if let Some(right_val) =
-                Self::evaluate_numeric_value(right, questions, response_line)?
-            {
-                return Ok((left_val - right_val).abs() < f64::EPSILON);
-            }
-        }
+        // if let Some(left_val) = Self::evaluate_numeric_value(left, questions, response_line)? {
+        //     if let Some(right_val) =
+        //         Self::evaluate_numeric_value(right, questions, response_line)?
+        //     {
+        //         return Ok((left_val - right_val).abs() < f64::EPSILON);
+        //     }
+        // }
 
         // Get responses from left side
         let left_responses = match left {
@@ -652,14 +652,10 @@ impl CfmcLogic {
         match node {
             CfmcNode::Literal(value) => Ok(value.trim().parse::<f64>().ok()),
 
-            CfmcNode::QuestionLabel(label) => {
-                let question = questions
-                    .get(label)
-                    .ok_or_else(|| format!("Question {label} not found in RFL"))?;
-                let responses = question.extract_responses(response_line);
-                let concatenated = responses.join("");
-                Ok(concatenated.trim().parse::<f64>().ok())
-            }
+            // QuestionLabel intentionally returns None — question references
+            // must go through the response-matching path which handles
+            // multi-response questions, ranges, and value lists correctly.
+            CfmcNode::QuestionLabel(_) => Ok(None),
 
             CfmcNode::Unary {
                 operator: CfmcOperator::NumItems,
