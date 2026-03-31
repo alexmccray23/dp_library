@@ -44,6 +44,10 @@ pub enum CfmcNode {
         operator: CfmcOperator,
         operand: Box<Self>,
     },
+    FunctionCall {
+        name: String,
+        args: Vec<Self>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -188,14 +192,24 @@ impl CfmcLogic {
                 }
             }
         } else {
-            // Check for implicit equality like COMP(1) -> COMP = (1)
+            // Check for function calls or implicit equality like COMP(1) -> COMP = (1)
             if let Some(paren_pos) = trimmed.find('(')
                 && paren_pos > 0
                 && !trimmed.chars().take(paren_pos).any(char::is_whitespace)
             {
                 let left_text = &trimmed[..paren_pos];
-                let right_text = &trimmed[paren_pos..];
 
+                // Known function calls: X(), XF(), NUMRESP(), etc.
+                if Self::is_known_function(left_text) {
+                    let inner = &trimmed[paren_pos + 1..trimmed.len() - 1];
+                    let arg = Self::parse_node(inner)?;
+                    return Ok(CfmcNode::FunctionCall {
+                        name: left_text.to_string(),
+                        args: vec![arg],
+                    });
+                }
+
+                let right_text = &trimmed[paren_pos..];
                 let left = Self::parse_node(left_text)?;
                 let right = Self::parse_node(right_text)?;
 
@@ -299,15 +313,17 @@ impl CfmcLogic {
         }
 
         let remaining = &bytes[pos..];
+        // Keywords need both left and right word boundaries
+        let left_boundary = pos == 0 || !bytes[pos - 1].is_ascii_alphanumeric();
 
         // Check longer operators first
-        if Self::starts_with_keyword(remaining, b"NUMITEMS") {
+        if left_boundary && Self::starts_with_keyword(remaining, b"NUMITEMS") {
             Some((CfmcOperator::NumItems, 8))
         } else if remaining.starts_with(b"^^NB") {
             Some((CfmcOperator::IsNotBlank, 4))
-        } else if Self::starts_with_keyword(remaining, b"NOT") {
+        } else if left_boundary && Self::starts_with_keyword(remaining, b"NOT") {
             Some((CfmcOperator::Not, 3))
-        } else if Self::starts_with_keyword(remaining, b"AND") {
+        } else if left_boundary && Self::starts_with_keyword(remaining, b"AND") {
             Some((CfmcOperator::And, 3))
         } else if remaining.starts_with(b"^^B") {
             Some((CfmcOperator::IsBlank, 3))
@@ -317,7 +333,7 @@ impl CfmcLogic {
             Some((CfmcOperator::GreaterEqual, 2))
         } else if remaining.starts_with(b"<>") {
             Some((CfmcOperator::NotEqual, 2))
-        } else if Self::starts_with_keyword(remaining, b"OR") {
+        } else if left_boundary && Self::starts_with_keyword(remaining, b"OR") {
             Some((CfmcOperator::Or, 2))
         } else if !remaining.is_empty() {
             match remaining[0] {
@@ -389,6 +405,13 @@ impl CfmcLogic {
         } else {
             CfmcNode::Literal(cleaned.to_string())
         }
+    }
+
+    fn is_known_function(name: &str) -> bool {
+        matches!(
+            name,
+            "X" | "XF" | "CHECKTEXT" | "NUMRESP" | "NUMBER_OF_RESPONSES"
+        )
     }
 
     /// Evaluate the logic expression against survey responses
@@ -482,8 +505,22 @@ impl CfmcLogic {
                     Ok(!Self::evaluate_blank(operand, questions, response_line)?)
                 }
 
+                CfmcOperator::NumItems => {
+                    Self::evaluate_numeric_value(node, questions, response_line)?.map_or_else(
+                        || Err("NUMITEMS evaluation failed".to_string()),
+                        |val| Ok(val != 0.0),
+                    )
+                }
+
                 _ => Err(format!("Unary operator {operator:?} not yet implemented")),
             },
+
+            CfmcNode::FunctionCall { .. } => {
+                Self::evaluate_numeric_value(node, questions, response_line)?.map_or_else(
+                    || Err(format!("Cannot evaluate function as boolean: {node:?}")),
+                    |val| Ok(val != 0.0),
+                )
+            }
         }
     }
 
@@ -493,6 +530,15 @@ impl CfmcLogic {
         questions: &AHashMap<String, RflQuestion>,
         response_line: &str,
     ) -> Result<bool, String> {
+        // Try numeric evaluation for function calls
+        if let Some(left_val) = Self::evaluate_numeric_value(left, questions, response_line)? {
+            if let Some(right_val) =
+                Self::evaluate_numeric_value(right, questions, response_line)?
+            {
+                return Ok((left_val - right_val).abs() < f64::EPSILON);
+            }
+        }
+
         // Get responses from left side
         let left_responses = match left {
             CfmcNode::QuestionLabel(label) => {
@@ -531,6 +577,21 @@ impl CfmcLogic {
         response_line: &str,
         operator: &CfmcOperator,
     ) -> Result<bool, String> {
+        // Try numeric evaluation for function calls and numeric expressions
+        if let Some(left_val) = Self::evaluate_numeric_value(left, questions, response_line)? {
+            if let Some(right_val) =
+                Self::evaluate_numeric_value(right, questions, response_line)?
+            {
+                return Ok(match operator {
+                    CfmcOperator::Less => left_val < right_val,
+                    CfmcOperator::LessEqual => left_val <= right_val,
+                    CfmcOperator::Greater => left_val > right_val,
+                    CfmcOperator::GreaterEqual => left_val >= right_val,
+                    _ => false,
+                });
+            }
+        }
+
         // Get responses from left side (should be a question)
         let left_responses = match left {
             CfmcNode::QuestionLabel(label) => {
@@ -581,6 +642,104 @@ impl CfmcLogic {
 
         // Check if any response matches any expected value
         Ok(left_responses.join("").trim().is_empty())
+    }
+
+    fn evaluate_numeric_value(
+        node: &CfmcNode,
+        questions: &AHashMap<String, RflQuestion>,
+        response_line: &str,
+    ) -> Result<Option<f64>, String> {
+        match node {
+            CfmcNode::Literal(value) => Ok(value.trim().parse::<f64>().ok()),
+
+            CfmcNode::QuestionLabel(label) => {
+                let question = questions
+                    .get(label)
+                    .ok_or_else(|| format!("Question {label} not found in RFL"))?;
+                let responses = question.extract_responses(response_line);
+                let concatenated = responses.join("");
+                Ok(concatenated.trim().parse::<f64>().ok())
+            }
+
+            CfmcNode::Unary {
+                operator: CfmcOperator::NumItems,
+                operand,
+            } => {
+                if let CfmcNode::QuestionLabel(label) = operand.as_ref() {
+                    let question = questions
+                        .get(label)
+                        .ok_or_else(|| format!("Question {label} not found in RFL"))?;
+                    let responses = question.extract_responses(response_line);
+                    let count = responses.iter().filter(|r| !r.trim().is_empty()).count();
+                    Ok(Some(count as f64))
+                } else {
+                    Err("NUMITEMS requires a question label".to_string())
+                }
+            }
+
+            CfmcNode::FunctionCall { name, args } => {
+                Self::evaluate_function_numeric(name, args, questions, response_line)
+            }
+
+            _ => Ok(None),
+        }
+    }
+
+    fn evaluate_function_numeric(
+        name: &str,
+        args: &[CfmcNode],
+        questions: &AHashMap<String, RflQuestion>,
+        response_line: &str,
+    ) -> Result<Option<f64>, String> {
+        match name {
+            "X" => {
+                // X(label) — return 0 for blank/non-numeric, otherwise the numeric value
+                let arg = args.first().ok_or("X() requires an argument")?;
+                if let CfmcNode::QuestionLabel(label) = arg {
+                    let question = questions
+                        .get(label)
+                        .ok_or_else(|| format!("Question {label} not found in RFL"))?;
+                    let responses = question.extract_responses(response_line);
+                    let concatenated = responses.join("");
+                    Ok(Some(
+                        concatenated.trim().parse::<f64>().unwrap_or(0.0),
+                    ))
+                } else {
+                    Err("X() requires a question label argument".to_string())
+                }
+            }
+
+            "XF" => {
+                // XF(subfunction) — dispatch to inner function
+                let inner = args.first().ok_or("XF() requires a function argument")?;
+                if let CfmcNode::FunctionCall {
+                    name: inner_name,
+                    args: inner_args,
+                } = inner
+                {
+                    Self::evaluate_function_numeric(inner_name, inner_args, questions, response_line)
+                } else {
+                    Err(format!("XF() requires a function argument, got {inner:?}"))
+                }
+            }
+
+            "NUMRESP" | "NUMBER_OF_RESPONSES" => {
+                // Count non-blank response slots
+                let arg = args.first().ok_or("NUMRESP() requires an argument")?;
+                if let CfmcNode::QuestionLabel(label) = arg {
+                    let question = questions
+                        .get(label)
+                        .ok_or_else(|| format!("Question {label} not found in RFL"))?;
+                    let responses = question.extract_responses(response_line);
+                    let count = responses.iter().filter(|r| !r.trim().is_empty()).count();
+                    Ok(Some(count as f64))
+                } else {
+                    Err("NUMRESP() requires a question label argument".to_string())
+                }
+            }
+
+            _ => Ok(None),
+        }
     }
 
     fn evaluate_substring(
@@ -640,7 +799,8 @@ impl CfmcLogic {
         match node {
             CfmcNode::Literal(value) => Ok(vec![value.clone()]),
             CfmcNode::QuestionLabel(label) => questions.get(label).map_or_else(
-                || Err(format!("Question {label} not found in RFL")),
+                // Not found in RFL — treat as a literal value (e.g. string codes like CR01)
+                || Ok(vec![label.clone()]),
                 |question| Ok(question.extract_responses(response_line)),
             ),
             CfmcNode::Binary {
@@ -825,6 +985,11 @@ impl CfmcLogic {
                 } else {
                     format!("{op_str} {operand_str}")
                 }
+            }
+            CfmcNode::FunctionCall { name, args } => {
+                let args_str: Vec<String> =
+                    args.iter().map(|a| Self::node_to_string(a)).collect();
+                format!("{name}({})", args_str.join(","))
             }
         }
     }
@@ -1074,6 +1239,14 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_plus_expression2() {
+        let logic = CfmcLogic::parse("FIPSCOMB(113) AND [PREC_NO+0.4$CR01,CR02,CR03,CR04,CR05,CR06,CR07,CR08,CR09,CR10,CR11,CR12,CR13,CR14,CR15,CR16,CR17,CR18,CR19,CR20,CR21,CR22,CR23,CR24,CR25,CR26,CR27,CR28,CR29,CR30,CR31,CR32,CR33,CR34,CR35,CR36,CR37,CR38,CR39,CR40,CR41,CR42,CR43,CR44]").unwrap();
+        let output = logic.to_string();
+        println!("Parsed: {output}");
+        assert_eq!(output, "FIPSCOMB(113) AND PREC_NO+0.4(CR01,CR02,CR03,CR04,CR05,CR06,CR07,CR08,CR09,CR10,CR11,CR12,CR13,CR14,CR15,CR16,CR17,CR18,CR19,CR20,CR21,CR22,CR23,CR24,CR25,CR26,CR27,CR28,CR29,CR30,CR31,CR32,CR33,CR34,CR35,CR36,CR37,CR38,CR39,CR40,CR41,CR42,CR43,CR44)");
+    }
+
+    #[test]
     fn test_parse_caseid() {
         let logic = CfmcLogic::parse("[CASEID#101]").unwrap();
         let output = logic.to_string();
@@ -1290,5 +1463,172 @@ mod tests {
         let logic = CfmcLogic::parse("NUMITEMSX(1) AND COMP(2)").unwrap();
         let output = logic.to_string();
         assert_eq!(output, "NUMITEMSX(1) AND COMP(2)");
+    }
+
+    #[test]
+    fn test_parse_numitems_comparison() {
+        let logic = CfmcLogic::parse("NUMITEMS(BRAND) >= 2").unwrap();
+        let output = logic.to_string();
+        assert_eq!(output, "NUMITEMS BRAND GreaterEqual 2");
+    }
+
+    #[test]
+    fn test_evaluate_numitems() {
+        let mut questions = AHashMap::new();
+        let question = RflQuestion {
+            label: "BRAND".to_string(),
+            start_col: 1,
+            width: 1,
+            question_type: QuestionType::Fld,
+            max_responses: 3,
+            text_lines: Vec::new(),
+            responses: AHashMap::new(),
+            min_value: None,
+            max_value: None,
+            exceptions: Vec::new(),
+        };
+        questions.insert("BRAND".to_string(), question);
+
+        let logic = CfmcLogic::parse("NUMITEMS(BRAND) >= 2").unwrap();
+
+        // 3 non-blank responses → NUMITEMS = 3 >= 2 → true
+        let response_line = "123";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+
+        // 1 non-blank response → NUMITEMS = 1 >= 2 → false
+        let response_line = "1  ";
+        assert!(!logic.evaluate(&questions, response_line).unwrap());
+
+        // 2 non-blank responses → NUMITEMS = 2 >= 2 → true
+        let response_line = "12 ";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+    }
+
+    #[test]
+    fn test_parse_x_function() {
+        let logic = CfmcLogic::parse("X(AGE) >= 21").unwrap();
+        let output = logic.to_string();
+        assert_eq!(output, "X(AGE) GreaterEqual 21");
+    }
+
+    #[test]
+    fn test_evaluate_x_function() {
+        let mut questions = AHashMap::new();
+        let question = RflQuestion {
+            label: "AGE".to_string(),
+            start_col: 1,
+            width: 3,
+            question_type: QuestionType::Num,
+            max_responses: 1,
+            text_lines: Vec::new(),
+            responses: AHashMap::new(),
+            min_value: None,
+            max_value: None,
+            exceptions: Vec::new(),
+        };
+        questions.insert("AGE".to_string(), question);
+
+        let logic = CfmcLogic::parse("X(AGE) >= 21").unwrap();
+
+        // Numeric value 25 >= 21 → true
+        let response_line = "025";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+
+        // Numeric value 18 >= 21 → false
+        let response_line = "018";
+        assert!(!logic.evaluate(&questions, response_line).unwrap());
+
+        // Blank response → X() returns 0, 0 >= 21 → false
+        let response_line = "   ";
+        assert!(!logic.evaluate(&questions, response_line).unwrap());
+    }
+
+    #[test]
+    fn test_parse_xf_numresp() {
+        let logic = CfmcLogic::parse("XF(NUMRESP(BEV1)) > 1").unwrap();
+        let output = logic.to_string();
+        assert_eq!(output, "XF(NUMRESP(BEV1)) Greater 1");
+    }
+
+    #[test]
+    fn test_evaluate_xf_numresp() {
+        let mut questions = AHashMap::new();
+        let question = RflQuestion {
+            label: "BEV1".to_string(),
+            start_col: 1,
+            width: 2,
+            question_type: QuestionType::Fld,
+            max_responses: 3,
+            text_lines: Vec::new(),
+            responses: AHashMap::new(),
+            min_value: None,
+            max_value: None,
+            exceptions: Vec::new(),
+        };
+        questions.insert("BEV1".to_string(), question);
+
+        let logic = CfmcLogic::parse("XF(NUMRESP(BEV1)) > 1").unwrap();
+
+        // 2 non-blank responses → count = 2 > 1 → true
+        let response_line = "0102  ";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+
+        // 1 non-blank response → count = 1 > 1 → false
+        let response_line = "01    ";
+        assert!(!logic.evaluate(&questions, response_line).unwrap());
+
+        // 3 non-blank responses → count = 3 > 1 → true
+        let response_line = "010203";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+    }
+
+    #[test]
+    fn test_parse_xf_number_of_responses() {
+        // Full name should also work
+        let logic = CfmcLogic::parse("XF(NUMBER_OF_RESPONSES(BEV1)) > 1").unwrap();
+        let output = logic.to_string();
+        assert_eq!(output, "XF(NUMBER_OF_RESPONSES(BEV1)) Greater 1");
+    }
+
+    #[test]
+    fn test_x_function_with_and() {
+        // X() used in a compound expression
+        let logic = CfmcLogic::parse("X(FEB) < X(JAN)").unwrap();
+        let output = logic.to_string();
+        assert_eq!(output, "X(FEB) Less X(JAN)");
+    }
+
+    #[test]
+    fn test_evaluate_x_comparison() {
+        let mut questions = AHashMap::new();
+        for (label, col) in [("FEB", 1), ("JAN", 4)] {
+            let question = RflQuestion {
+                label: label.to_string(),
+                start_col: col,
+                width: 3,
+                question_type: QuestionType::Num,
+                max_responses: 1,
+                text_lines: Vec::new(),
+                responses: AHashMap::new(),
+                min_value: None,
+                max_value: None,
+                exceptions: Vec::new(),
+            };
+            questions.insert(label.to_string(), question);
+        }
+
+        let logic = CfmcLogic::parse("X(FEB) < X(JAN)").unwrap();
+
+        // FEB=10, JAN=20 → 10 < 20 → true
+        let response_line = "010020";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+
+        // FEB=30, JAN=20 → 30 < 20 → false
+        let response_line = "030020";
+        assert!(!logic.evaluate(&questions, response_line).unwrap());
+
+        // FEB=blank, JAN=20 → 0 < 20 → true
+        let response_line = "   020";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
     }
 }
