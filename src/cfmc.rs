@@ -48,6 +48,11 @@ pub enum CfmcNode {
         name: String,
         args: Vec<Self>,
     },
+    /// Raw column reference like [10.2] — col is 1-indexed
+    ColumnRef {
+        col: usize,
+        width: usize,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -139,6 +144,24 @@ impl CfmcLogic {
     }
 
     fn parse_node(logic: &str) -> Result<CfmcNode, String> {
+        // Detect bracket-wrapped raw column references like [10.2] or [10]
+        // before trim_expression strips the brackets
+        let raw = logic.trim().to_uppercase();
+        if raw.starts_with('[') && raw.ends_with(']') {
+            let inner = &raw[1..raw.len() - 1];
+            if let Some((col_str, width_str)) = inner.split_once('.') {
+                if let (Ok(col), Ok(width)) =
+                    (col_str.parse::<usize>(), width_str.parse::<usize>())
+                {
+                    return Ok(CfmcNode::ColumnRef { col, width });
+                }
+            } else if !inner.is_empty() && inner.bytes().all(|b| b.is_ascii_digit()) {
+                if let Ok(col) = inner.parse::<usize>() {
+                    return Ok(CfmcNode::ColumnRef { col, width: 1 });
+                }
+            }
+        }
+
         let trimmed = Self::trim_expression(logic);
 
         if trimmed.is_empty() {
@@ -210,6 +233,19 @@ impl CfmcLogic {
                 }
 
                 let right_text = &trimmed[paren_pos..];
+
+                // Detect <> negation prefix: BRAND(<>1-3) → BRAND NotEqual (1-3)
+                let inner_values = &trimmed[paren_pos + 1..trimmed.len() - 1];
+                if let Some(stripped) = inner_values.strip_prefix("<>") {
+                    let left = Self::parse_node(left_text)?;
+                    let right = Self::parse_node(stripped)?;
+                    return Ok(CfmcNode::Binary {
+                        operator: CfmcOperator::NotEqual,
+                        left: Box::new(left),
+                        right: Box::new(right),
+                    });
+                }
+
                 let left = Self::parse_node(left_text)?;
                 let right = Self::parse_node(right_text)?;
 
@@ -444,6 +480,16 @@ impl CfmcLogic {
                 )
             }
 
+            CfmcNode::ColumnRef { col, width } => {
+                let start = col - 1;
+                if start + width <= response_line.len() {
+                    let data = &response_line[start..start + width];
+                    Ok(!data.trim().is_empty())
+                } else {
+                    Ok(false)
+                }
+            }
+
             CfmcNode::Literal(value) => {
                 // Literals evaluate to true if non-empty
                 Ok(!value.trim().is_empty())
@@ -657,6 +703,16 @@ impl CfmcLogic {
             // multi-response questions, ranges, and value lists correctly.
             CfmcNode::QuestionLabel(_) => Ok(None),
 
+            CfmcNode::ColumnRef { col, width } => {
+                let start = col - 1;
+                if start + width <= response_line.len() {
+                    let data = &response_line[start..start + width];
+                    Ok(data.trim().parse::<f64>().ok())
+                } else {
+                    Ok(Some(0.0))
+                }
+            }
+
             CfmcNode::Unary {
                 operator: CfmcOperator::NumItems,
                 operand,
@@ -731,6 +787,26 @@ impl CfmcLogic {
                     Ok(Some(count as f64))
                 } else {
                     Err("NUMRESP() requires a question label argument".to_string())
+                }
+            }
+
+            "CHECKTEXT" => {
+                // CHECKTEXT(label) — character count of response (0 if blank)
+                let arg = args.first().ok_or("CHECKTEXT() requires an argument")?;
+                if let CfmcNode::QuestionLabel(label) = arg {
+                    let question = questions
+                        .get(label)
+                        .ok_or_else(|| format!("Question {label} not found in RFL"))?;
+                    let responses = question.extract_responses(response_line);
+                    let concatenated = responses.join("");
+                    let trimmed = concatenated.trim();
+                    Ok(Some(if trimmed.is_empty() {
+                        0.0
+                    } else {
+                        trimmed.len() as f64
+                    }))
+                } else {
+                    Err("CHECKTEXT() requires a question label argument".to_string())
                 }
             }
 
@@ -936,6 +1012,7 @@ impl CfmcLogic {
 
                 let result = match operator {
                     CfmcOperator::Equal => format!("{left_str}({right_str})"),
+                    CfmcOperator::NotEqual => format!("{left_str}(<>{right_str})"),
                     _ => format!("{left_str}{op_str}{right_str}"),
                 };
 
@@ -987,6 +1064,7 @@ impl CfmcLogic {
                     args.iter().map(|a| Self::node_to_string(a)).collect();
                 format!("{name}({})", args_str.join(","))
             }
+            CfmcNode::ColumnRef { col, width } => format!("[{col}.{width}]"),
         }
     }
 
@@ -1626,5 +1704,185 @@ mod tests {
         // FEB=blank, JAN=20 → 0 < 20 → true
         let response_line = "   020";
         assert!(logic.evaluate(&questions, response_line).unwrap());
+    }
+
+    #[test]
+    fn test_parse_checktext() {
+        let logic = CfmcLogic::parse("CHECKTEXT(OTHER) > 0").unwrap();
+        let output = logic.to_string();
+        assert_eq!(output, "CHECKTEXT(OTHER) Greater 0");
+    }
+
+    #[test]
+    fn test_evaluate_checktext() {
+        let mut questions = AHashMap::new();
+        let question = RflQuestion {
+            label: "OTHER".to_string(),
+            start_col: 1,
+            width: 10,
+            question_type: QuestionType::Var,
+            max_responses: 1,
+            text_lines: Vec::new(),
+            responses: AHashMap::new(),
+            min_value: None,
+            max_value: None,
+            exceptions: Vec::new(),
+        };
+        questions.insert("OTHER".to_string(), question);
+
+        let logic = CfmcLogic::parse("CHECKTEXT(OTHER) > 0").unwrap();
+
+        // Non-blank response → CHECKTEXT = 5 > 0 → true
+        let response_line = "Hello     ";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+
+        // Blank response → CHECKTEXT = 0 > 0 → false
+        let response_line = "          ";
+        assert!(!logic.evaluate(&questions, response_line).unwrap());
+
+        let logic = CfmcLogic::parse("CHECKTEXT(OTHER) > 1").unwrap();
+
+        // Single char → CHECKTEXT = 1 > 1 → false
+        let response_line = "X         ";
+        assert!(!logic.evaluate(&questions, response_line).unwrap());
+    }
+
+    #[test]
+    fn test_parse_negated_response_list() {
+        let logic = CfmcLogic::parse("BRAND(<>1-3)").unwrap();
+        let output = logic.to_string();
+        // Should produce NotEqual, not Equal
+        assert_eq!(output, "BRAND(<>1-3)");
+    }
+
+    #[test]
+    fn test_evaluate_negated_response_list() {
+        let mut questions = AHashMap::new();
+        let question = RflQuestion {
+            label: "BRAND".to_string(),
+            start_col: 1,
+            width: 1,
+            question_type: QuestionType::Fld,
+            max_responses: 1,
+            text_lines: Vec::new(),
+            responses: AHashMap::new(),
+            min_value: None,
+            max_value: None,
+            exceptions: Vec::new(),
+        };
+        questions.insert("BRAND".to_string(), question);
+
+        let logic = CfmcLogic::parse("BRAND(<>1-3)").unwrap();
+
+        // Response 4 is NOT in 1-3 → true
+        let response_line = "4";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+
+        // Response 2 IS in 1-3 → false
+        let response_line = "2";
+        assert!(!logic.evaluate(&questions, response_line).unwrap());
+
+        // Response 1 IS in 1-3 → false
+        let response_line = "1";
+        assert!(!logic.evaluate(&questions, response_line).unwrap());
+    }
+
+    #[test]
+    fn test_evaluate_negated_comma_list() {
+        let mut questions = AHashMap::new();
+        let question = RflQuestion {
+            label: "Q1".to_string(),
+            start_col: 1,
+            width: 1,
+            question_type: QuestionType::Fld,
+            max_responses: 1,
+            text_lines: Vec::new(),
+            responses: AHashMap::new(),
+            min_value: None,
+            max_value: None,
+            exceptions: Vec::new(),
+        };
+        questions.insert("Q1".to_string(), question);
+
+        let logic = CfmcLogic::parse("Q1(<>2,4,6)").unwrap();
+
+        // Response 3 not in {2,4,6} → true
+        let response_line = "3";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+
+        // Response 4 in {2,4,6} → false
+        let response_line = "4";
+        assert!(!logic.evaluate(&questions, response_line).unwrap());
+    }
+
+    #[test]
+    fn test_parse_column_ref() {
+        let logic = CfmcLogic::parse("[10.2] > 9").unwrap();
+        let output = logic.to_string();
+        assert_eq!(output, "[10.2] Greater 9");
+    }
+
+    #[test]
+    fn test_parse_column_ref_no_width() {
+        // Single column, default width 1
+        let logic = CfmcLogic::parse("[5] > 3").unwrap();
+        let output = logic.to_string();
+        assert_eq!(output, "[5.1] Greater 3");
+    }
+
+    #[test]
+    fn test_evaluate_column_ref() {
+        let questions = AHashMap::new();
+
+        let logic = CfmcLogic::parse("[10.2] > 9").unwrap();
+
+        // Columns 10-11 = "15" → 15 > 9 → true
+        let response_line = "000000000150000";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+
+        // Columns 10-11 = "05" → 5 > 9 → false
+        let response_line = "000000000050000";
+        assert!(!logic.evaluate(&questions, response_line).unwrap());
+
+        // Columns 10-11 = "99" → 99 > 9 → true
+        let response_line = "000000000990000";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+    }
+
+    #[test]
+    fn test_column_ref_in_compound_expr() {
+        let mut questions = AHashMap::new();
+        let question = RflQuestion {
+            label: "COMP".to_string(),
+            start_col: 1,
+            width: 1,
+            question_type: QuestionType::Fld,
+            max_responses: 1,
+            text_lines: Vec::new(),
+            responses: AHashMap::new(),
+            min_value: None,
+            max_value: None,
+            exceptions: Vec::new(),
+        };
+        questions.insert("COMP".to_string(), question);
+
+        // Mix column ref with question label
+        let logic = CfmcLogic::parse("COMP(1) AND [5.2] > 20").unwrap();
+
+        // COMP=1 and cols 5-6 = "25" → true AND 25>20 → true
+        let response_line = "1   25";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+
+        // COMP=1 and cols 5-6 = "10" → true AND 10>20 → false
+        let response_line = "1   10";
+        assert!(!logic.evaluate(&questions, response_line).unwrap());
+    }
+
+    #[test]
+    fn test_column_ref_does_not_break_label_brackets() {
+        // [QD1#18-110] should still parse as a label with # range, not a ColumnRef
+        let logic = CfmcLogic::parse("[QD1#18-110]").unwrap();
+        let output = logic.to_string();
+        assert_eq!(output, "QD1(18-110)");
     }
 }
