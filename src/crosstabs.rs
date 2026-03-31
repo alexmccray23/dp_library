@@ -1,5 +1,5 @@
 use crate::rfl::RflQuestion;
-use ahash::AHashMap;
+use ahash::{AHashMap, AHashSet};
 use calamine::{Data, Reader, open_workbook_auto};
 use std::error::Error;
 use std::fmt;
@@ -63,33 +63,50 @@ impl CrossTabsLogic {
     pub fn new(logic: &str) -> Result<Self, CrossTabsError> {
         let mut logic = logic.to_string();
 
-        // Handle slash syntax: QX2/Q17:1 becomes QX2:1 OR Q17:1
+        // Handle slash syntax: QX2/Q17:1 becomes QX2:1 OR Q17:1.
+        // Process each whitespace-delimited token independently so that
+        // surrounding expressions (e.g., "QE:8 AND Q7/7X:1-2") aren't
+        // mixed into the slash expansion.
         if logic.contains('/') {
-            // Detect whether slashes separate question names with codes
-            // (e.g., QX2/Q17:1) vs. descriptive text (e.g., SOUTH/WEST)
-            let slash_terms_have_codes = logic
-                .split('/')
-                .any(|p| !p.contains(' ') && p.contains(':'));
+            logic = logic.replace("/(", ":(");
 
-            logic = logic.replace("/(", ":(").replace('/', " OR ");
-
-            if slash_terms_have_codes {
-                // Propagate codes from the term that has them to all terms
-                let parts: Vec<&str> = logic.split(" OR ").collect();
-                if let Some(codes) = parts.iter().find_map(|p| p.find(':').map(|i| &p[i..])) {
-                    let codes = codes.to_string();
-                    logic = parts
-                        .iter()
-                        .map(|p| {
-                            if p.contains(':') {
-                                p.trim().to_string()
-                            } else {
-                                format!("{}{codes}", p.trim())
-                            }
-                        })
-                        .collect::<Vec<_>>()
-                        .join(" OR ");
+            if logic.contains('/') {
+                let tokens: Vec<&str> = logic.split_whitespace().collect();
+                let mut result = Vec::new();
+                let mut skip_descriptive = false;
+                for token in &tokens {
+                    if skip_descriptive {
+                        // Drop trailing descriptive text after a slash expansion
+                        // (e.g., "FIRST", "RANK"). Stop at operators, parens, or
+                        // tokens that look like logic.
+                        if token.contains(':')
+                            || token.contains('/')
+                            || token.contains('(')
+                            || token.contains(')')
+                            || matches!(*token, "OR" | "AND" | "&" | "NOT" | "MINUS")
+                        {
+                            skip_descriptive = false;
+                        } else {
+                            continue;
+                        }
+                    }
+                    if token.contains('/') {
+                        result.push(Self::expand_slash_token(token, false));
+                        skip_descriptive = true;
+                    } else {
+                        result.push(token.to_string());
+                    }
                 }
+                // Wrap the slash expansion in parens if it's part of a
+                // larger expression, so OR precedence is preserved.
+                if result.len() > 1 {
+                    for item in &mut result {
+                        if item.contains(" OR ") {
+                            *item = format!("({item})");
+                        }
+                    }
+                }
+                logic = result.join(" ");
             }
         }
         // Handle "DO NOT SELECT" patterns: "Q5: DO NOT SELECT :1 OR :3" -> "NOT(Q5:1,3)"
@@ -111,6 +128,69 @@ impl CrossTabsLogic {
         }
 
         Ok(Self::parse_simple(&logic))
+    }
+
+    /// Expand a single slash-delimited token like `Q7/7X:3-4` into
+    /// `(Q7:3-4 OR Q7X:3-4)`.  When the token is the *only* token in the
+    /// expression, outer parentheses are omitted.
+    fn expand_slash_token(token: &str, wrap_parens: bool) -> String {
+        let parts: Vec<&str> = token.split('/').collect();
+
+        // Infer leading alpha prefix for shorthand terms (Q7/7X → Q7/Q7X)
+        let prefix: String = parts[0]
+            .chars()
+            .take_while(|c| c.is_ascii_alphabetic())
+            .collect();
+        let parts: Vec<String> = parts
+            .iter()
+            .map(|p| {
+                if !prefix.is_empty()
+                    && p.starts_with(|c: char| c.is_ascii_digit())
+                    && p.contains(|c: char| c.is_ascii_alphabetic())
+                {
+                    format!("{prefix}{p}")
+                } else {
+                    p.to_string()
+                }
+            })
+            .collect();
+
+        // Extract codes (e.g., ":3-4") from whichever part has them
+        let codes: String = parts
+            .iter()
+            .find_map(|p| {
+                p.find(':').map(|i| {
+                    let rest = &p[i..];
+                    rest[..rest.find(' ').unwrap_or(rest.len())].to_string()
+                })
+            })
+            .unwrap_or_default();
+
+        if codes.is_empty() {
+            // No codes — descriptive text slash (e.g., SOUTH/WEST)
+            return parts.join(" OR ");
+        }
+
+        // Propagate codes to all parts, stripping trailing text
+        let expanded: String = parts
+            .iter()
+            .map(|p| {
+                if let Some(i) = p.find(':') {
+                    let rest = &p[i..];
+                    let end = i + rest.find(' ').unwrap_or(rest.len());
+                    format!("{}{}", &p[..i], &p[i..end])
+                } else {
+                    format!("{p}{codes}")
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" OR ");
+
+        if wrap_parens {
+            format!("({expanded})")
+        } else {
+            expanded
+        }
     }
 
     fn parse_simple(logic: &str) -> Self {
@@ -763,13 +843,34 @@ impl BannersTables {
             .worksheet_range(&sheet_names[0])
             .map_err(|e| CrossTabsError::ExcelError(format!("Failed to read sheet: {e}")))?;
 
+        const REGIONS_4PT: &[&str] = &["NORTHEAST", "MIDWEST", "SOUTH", "WEST"];
+        const REGIONS_8PT: &[&str] = &[
+            "NEW ENGLAND",
+            "MID-ATLANTIC",
+            "GREAT LAKES",
+            "DEEP SOUTH",
+            "OUTER SOUTH",
+            "FARM BELT",
+            "MOUNTAIN",
+            "PACIFIC",
+        ];
+
+        // Pre-scan subtitles to detect a complete national region set
+        let subtitles: AHashSet<String> = range
+            .rows()
+            .filter(|row| row.len() >= 4)
+            .map(|row| Self::cell_to_string(&row[2]))
+            .collect();
+        let has_national_regions = REGIONS_4PT.iter().all(|r| subtitles.contains(*r))
+            || REGIONS_8PT.iter().all(|r| subtitles.contains(*r));
+
         let mut tables = Vec::new();
         let mut current_table: Option<BannersTable> = None;
         let mut age_question = String::new();
         let mut group_title = String::new();
         let mut region_title = String::new();
 
-        for (row_idx, row) in range.rows().enumerate() {
+        for (row_idx, row) in range.rows().enumerate().peekable() {
             if row.len() < 4 {
                 eprintln!(
                     "Row {} has {} columns (need at least 4)",
@@ -802,7 +903,7 @@ impl BannersTables {
             };
 
             Self::fix_agegroups(&mut specs, &subtitle, &mut age_question);
-            Self::fix_national_regions(&mut specs, &subtitle);
+            Self::fix_national_regions(&mut specs, &subtitle, has_national_regions);
 
             // Check if this starts a new table
             if index.chars().any(|c| !c.is_ascii_digit()) || title == "TITLE" {
@@ -923,14 +1024,21 @@ impl BannersTables {
     fn fix_national_regions(
         specs: &mut String,
         subtitle: &str,
+        has_national_regions: bool,
     ) {
+        if !has_national_regions {
+            return;
+        }
 
         // Handle region substitutions
         let region_spec = match subtitle {
+            // 4-pt National
             "NORTHEAST" => " & FIPSCOMB:09,23,25,33,44,50,10,11,24,34,36,42,54",
             "MIDWEST" => " & FIPSCOMB:17,18,26,27,39,55,19,20,29,31,38,46",
             "SOUTH" => " & FIPSCOMB:01,05,12,13,22,28,45,21,37,40,47,48,51",
             "WEST" => " & FIPSCOMB:02,04,08,16,30,32,35,49,56,06,15,41,53",
+
+            // 8-pt National
             "NEW ENGLAND" => " & FIPSCOMB:09,23,25,33,44,50",
             "MID-ATLANTIC" => " & FIPSCOMB:10,11,24,34,36,42,54",
             "GREAT LAKES" => " & FIPSCOMB:17,18,26,27,39,55",
@@ -949,7 +1057,7 @@ impl BannersTables {
     fn fix_spec_format(spec: &str) -> String {
         // Fix patterns like D2B2 -> D2B:2, Q1A1 -> Q1A:1, etc.
         // Simple pattern matching without regex for performance
-        let spec = spec.trim();
+        let spec = spec.trim().replace('.', "");
 
         // Look for pattern: letters + digits + letters + digits at end
         let mut last_letter_pos = None;
@@ -1158,6 +1266,17 @@ mod tests {
         // Three-way slash: QA/QB/QC:3 becomes QA:3 OR QB:3 OR QC:3
         let result = CrossTabsLogic::new("QA/QB/QC:3").unwrap();
         assert_eq!(result.to_inorder(), "QA:3 OR QB:3 OR QC:3");
+
+        // Shorthand: Q7/7X:3 infers the Q prefix → Q7:3 OR Q7X:3
+        let result = CrossTabsLogic::new("Q7/7X:3,4,5:8,12:42").unwrap();
+        assert_eq!(result.to_inorder(), "Q7:3,4,5:8,12:42 OR Q7X:3,4,5:8,12:42");
+
+        // Trailing descriptive text after codes should not interfere
+        let result = CrossTabsLogic::new("Q7/7X:3-4 FIRST RANK").unwrap();
+        assert_eq!(result.to_inorder(), "Q7:3-4 OR Q7X:3-4");
+
+        let result = CrossTabsLogic::new("QE:8 AND Q7/7X:1-2").unwrap();
+        assert_eq!(result.to_inorder(), "QE:8 & (Q7:1-2 OR Q7X:1-2)");
     }
 
     #[test]
