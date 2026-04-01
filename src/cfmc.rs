@@ -21,11 +21,15 @@ pub enum CfmcOperator {
     NumItems,   // NUMITEMS
     IsBlank,    // ^^B
     IsNotBlank, // ^^NB
-    Plus,       // +
+    Plus,       // + (substring extraction or arithmetic addition)
+
+    // Arithmetic operators
+    Multiply, // *
+    Divide,   // /
 
     // Value construction
     Comma, // ,
-    Dash,  // -
+    Dash,  // - (range or arithmetic subtraction)
 }
 
 #[derive(Debug, Clone)]
@@ -52,6 +56,13 @@ pub enum CfmcNode {
     ColumnRef {
         col: usize,
         width: usize,
+    },
+    /// Punch reference like [LABEL^1,5] or [10.2^^1,5,20]
+    PunchRef {
+        location: Box<Self>,
+        codes: Vec<u8>,
+        multi_col: bool,
+        negated: bool,
     },
 }
 
@@ -106,9 +117,24 @@ impl CfmcLogic {
         }
 
         // Remove outer brackets if they wrap the entire expression (loop to handle multiple layers)
+        // Skip if inner content contains ^ (punch ref syntax handled by parse_node)
         loop {
             if !trimmed.starts_with('[') || !trimmed.ends_with(']') {
                 break;
+            }
+
+            let inner = &trimmed[1..trimmed.len() - 1];
+            // Skip bracket stripping for punch refs [LOC^codes] / [LOC^^codes]
+            // but NOT for blank checks [LOC^^B] / [LOC^^NB] which use operator scanning
+            if let Some(caret_pos) = inner.find('^') {
+                let after = if inner[caret_pos..].starts_with("^^") {
+                    &inner[caret_pos + 2..]
+                } else {
+                    &inner[caret_pos + 1..]
+                };
+                if after != "B" && after != "NB" {
+                    break;
+                }
             }
 
             let mut level = 0;
@@ -144,11 +170,17 @@ impl CfmcLogic {
     }
 
     fn parse_node(logic: &str) -> Result<CfmcNode, String> {
-        // Detect bracket-wrapped raw column references like [10.2] or [10]
-        // before trim_expression strips the brackets
+        // Detect bracket-wrapped special syntax before trim_expression strips brackets
         let raw = logic.trim().to_uppercase();
         if raw.starts_with('[') && raw.ends_with(']') {
             let inner = &raw[1..raw.len() - 1];
+
+            // Punch references: [LOC^^codes] or [LOC^codes]
+            if let Some(result) = Self::parse_punch_ref(inner)? {
+                return Ok(result);
+            }
+
+            // Raw column references: [10.2] or [10]
             if let Some((col_str, width_str)) = inner.split_once('.') {
                 if let (Ok(col), Ok(width)) =
                     (col_str.parse::<usize>(), width_str.parse::<usize>())
@@ -183,8 +215,16 @@ impl CfmcLogic {
 
                 CfmcOperator::IsBlank | CfmcOperator::IsNotBlank => {
                     // Unary operators (postfix)
+                    // Re-wrap in brackets if operand looks like col.width (from stripped [col.width^^B])
                     let operand_text = &trimmed[0..pos];
-                    let operand = Self::parse_node(operand_text)?;
+                    let operand_input = if operand_text.contains('.')
+                        && operand_text.bytes().all(|b| b.is_ascii_digit() || b == b'.')
+                    {
+                        format!("[{operand_text}]")
+                    } else {
+                        operand_text.to_string()
+                    };
+                    let operand = Self::parse_node(&operand_input)?;
                     Ok(CfmcNode::Unary {
                         operator: op,
                         operand: Box::new(operand),
@@ -377,6 +417,8 @@ impl CfmcLogic {
                 b'>' => Some((CfmcOperator::Greater, 1)),
                 b'=' | b'$' | b'#' => Some((CfmcOperator::Equal, 1)),
                 b'+' => Some((CfmcOperator::Plus, 1)),
+                b'*' => Some((CfmcOperator::Multiply, 1)),
+                b'/' => Some((CfmcOperator::Divide, 1)),
                 b',' => Some((CfmcOperator::Comma, 1)),
                 b'-' => Some((CfmcOperator::Dash, 1)),
                 _ => None,
@@ -397,6 +439,7 @@ impl CfmcLogic {
             | CfmcOperator::LessEqual
             | CfmcOperator::GreaterEqual => 30,
             CfmcOperator::Plus => 40,
+            CfmcOperator::Multiply | CfmcOperator::Divide => 45,
             CfmcOperator::Comma => 50,
             CfmcOperator::Dash => 60,
             CfmcOperator::Not
@@ -440,6 +483,92 @@ impl CfmcLogic {
             CfmcNode::QuestionLabel(cleaned.to_string())
         } else {
             CfmcNode::Literal(cleaned.to_string())
+        }
+    }
+
+    /// Parse punch reference from bracket inner content.
+    /// Handles [LOC^^codes], [LOC^codes], [LOC^^Ncodes], [LOC^^B], [LOC^^NB]
+    fn parse_punch_ref(inner: &str) -> Result<Option<CfmcNode>, String> {
+        // Find ^^ (multi-col) or ^ (single-col) — check ^^ first
+        let (caret_pos, multi_col) = if let Some(pos) = inner.find("^^") {
+            // Skip ^^B and ^^NB — those are blank checks, not punch refs
+            let after_carets = &inner[pos + 2..];
+            if after_carets == "B" || after_carets == "NB" {
+                return Ok(None); // Let the normal ^^B/^^NB operator handling take over
+            }
+            (pos, true)
+        } else if let Some(pos) = inner.find('^') {
+            (pos, false)
+        } else {
+            return Ok(None);
+        };
+
+        let loc_str = &inner[..caret_pos];
+        let caret_len = if multi_col { 2 } else { 1 };
+        let codes_str = &inner[caret_pos + caret_len..];
+
+        // Parse location (label or col.width)
+        let location = Self::parse_node(&format!("[{loc_str}]"))?;
+
+        // Check for N (negated) prefix
+        let (negated, codes_str) = if let Some(stripped) = codes_str.strip_prefix('N') {
+            (true, stripped)
+        } else {
+            (false, codes_str)
+        };
+
+        let codes = Self::parse_punch_codes(codes_str)?;
+
+        Ok(Some(CfmcNode::PunchRef {
+            location: Box::new(location),
+            codes,
+            multi_col,
+            negated,
+        }))
+    }
+
+    /// Parse punch code list like "1,5,8" or "1-9" or "1.5,8"
+    /// Codes: 1-9 direct, 0=10, X=11, Y=12. For multi-col, 13+ maps to next columns.
+    fn parse_punch_codes(codes_str: &str) -> Result<Vec<u8>, String> {
+        let mut codes = Vec::new();
+        for part in codes_str.split(',') {
+            let part = part.trim();
+            if part.is_empty() {
+                continue;
+            }
+            // Check for range (period or dash)
+            if let Some((start_s, end_s)) = part.split_once('-').or_else(|| part.split_once('.')) {
+                let start = Self::parse_single_punch_code(start_s.trim())?;
+                let end = Self::parse_single_punch_code(end_s.trim())?;
+                for code in start..=end {
+                    codes.push(code);
+                }
+            } else {
+                codes.push(Self::parse_single_punch_code(part)?);
+            }
+        }
+        Ok(codes)
+    }
+
+    fn parse_single_punch_code(s: &str) -> Result<u8, String> {
+        match s {
+            "X" => Ok(11),
+            "Y" => Ok(12),
+            _ => s
+                .parse::<u8>()
+                .map(|n| if n == 0 { 10 } else { n })
+                .map_err(|_| format!("Invalid punch code: {s}")),
+        }
+    }
+
+    /// Map a data character to its punch code number (1-12), or None if blank
+    fn char_to_punch(ch: u8) -> Option<u8> {
+        match ch {
+            b'1'..=b'9' => Some(ch - b'0'),
+            b'0' => Some(10),
+            b'X' | b'x' => Some(11),
+            b'Y' | b'y' => Some(12),
+            _ => None,
         }
     }
 
@@ -488,6 +617,17 @@ impl CfmcLogic {
                 } else {
                     Ok(false)
                 }
+            }
+
+            CfmcNode::PunchRef {
+                location,
+                codes,
+                multi_col,
+                negated,
+            } => {
+                let result =
+                    Self::evaluate_punch_ref(location, codes, *multi_col, questions, response_line)?;
+                Ok(if *negated { !result } else { result })
             }
 
             CfmcNode::Literal(value) => {
@@ -674,20 +814,91 @@ impl CfmcLogic {
         questions: &AHashMap<String, RflQuestion>,
         response_line: &str,
     ) -> Result<bool, String> {
-        // Get responses from left side (should be a question)
-        let left_responses = match left {
+        match left {
             CfmcNode::QuestionLabel(label) => {
-                if let Some(question) = questions.get(label) {
-                    question.extract_responses(response_line)
+                let question = questions
+                    .get(label)
+                    .ok_or_else(|| format!("Question {label} not found in RFL"))?;
+                let responses = question.extract_responses(response_line);
+                Ok(responses.join("").trim().is_empty())
+            }
+            CfmcNode::ColumnRef { col, width } => {
+                let start = col - 1;
+                if start + width <= response_line.len() {
+                    Ok(response_line[start..start + width].trim().is_empty())
                 } else {
-                    return Err(format!("Question {label} not found in RFL"));
+                    Ok(true) // Out of bounds = blank
                 }
             }
-            _ => return Err("Left side of equality must be a question label".to_string()),
-        };
+            _ => Err(format!("Unsupported operand for blank check: {left:?}")),
+        }
+    }
 
-        // Check if any response matches any expected value
-        Ok(left_responses.join("").trim().is_empty())
+    /// Extract raw bytes at a location (QuestionLabel or ColumnRef)
+    fn extract_location_bytes<'a>(
+        location: &CfmcNode,
+        questions: &AHashMap<String, RflQuestion>,
+        response_line: &'a str,
+    ) -> Result<&'a [u8], String> {
+        match location {
+            CfmcNode::QuestionLabel(label) => {
+                let question = questions
+                    .get(label)
+                    .ok_or_else(|| format!("Question {label} not found in RFL"))?;
+                let start = question.start_col - 1;
+                let total_width = question.width * question.max_responses;
+                if start + total_width <= response_line.len() {
+                    Ok(&response_line.as_bytes()[start..start + total_width])
+                } else {
+                    Ok(b"")
+                }
+            }
+            CfmcNode::ColumnRef { col, width } => {
+                let start = col - 1;
+                if start + width <= response_line.len() {
+                    Ok(&response_line.as_bytes()[start..start + width])
+                } else {
+                    Ok(b"")
+                }
+            }
+            _ => Err(format!("Invalid punch ref location: {location:?}")),
+        }
+    }
+
+    fn evaluate_punch_ref(
+        location: &CfmcNode,
+        codes: &[u8],
+        multi_col: bool,
+        questions: &AHashMap<String, RflQuestion>,
+        response_line: &str,
+    ) -> Result<bool, String> {
+        let data = Self::extract_location_bytes(location, questions, response_line)?;
+
+        for &code in codes {
+            if multi_col {
+                // Multi-column: code 1-12 → column 0, 13-24 → column 1, etc.
+                let col_idx = ((code - 1) / 12) as usize;
+                let punch_in_col = ((code - 1) % 12) + 1;
+                if col_idx < data.len() {
+                    if let Some(actual_punch) = Self::char_to_punch(data[col_idx]) {
+                        if actual_punch == punch_in_col {
+                            return Ok(true);
+                        }
+                    }
+                }
+            } else {
+                // Single-column: check first column only
+                if !data.is_empty() {
+                    if let Some(actual_punch) = Self::char_to_punch(data[0]) {
+                        if actual_punch == code {
+                            return Ok(true);
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(false)
     }
 
     fn evaluate_numeric_value(
@@ -733,7 +944,61 @@ impl CfmcLogic {
                 Self::evaluate_function_numeric(name, args, questions, response_line)
             }
 
+            CfmcNode::Binary {
+                operator: CfmcOperator::Plus,
+                left,
+                right,
+            } => {
+                // Distinguish substring extraction (LABEL+col.width) from arithmetic
+                if let CfmcNode::Literal(spec) = right.as_ref() {
+                    if let Some((c, w)) = spec.split_once('.') {
+                        if c.parse::<usize>().is_ok() && w.parse::<usize>().is_ok() {
+                            // Substring extraction — not numeric, handled by evaluate_substring
+                            return Ok(None);
+                        }
+                    }
+                }
+                Self::evaluate_arithmetic(left, right, questions, response_line, |a, b| a + b)
+            }
+
+            CfmcNode::Binary {
+                operator: CfmcOperator::Dash,
+                left,
+                right,
+            } => Self::evaluate_arithmetic(left, right, questions, response_line, |a, b| a - b),
+
+            CfmcNode::Binary {
+                operator: CfmcOperator::Multiply,
+                left,
+                right,
+            } => Self::evaluate_arithmetic(left, right, questions, response_line, |a, b| a * b),
+
+            CfmcNode::Binary {
+                operator: CfmcOperator::Divide,
+                left,
+                right,
+            } => Self::evaluate_arithmetic(left, right, questions, response_line, |a, b| {
+                if b.abs() < f64::EPSILON { 0.0 } else { a / b }
+            }),
+
             _ => Ok(None),
+        }
+    }
+
+    fn evaluate_arithmetic(
+        left: &CfmcNode,
+        right: &CfmcNode,
+        questions: &AHashMap<String, RflQuestion>,
+        response_line: &str,
+        op: impl FnOnce(f64, f64) -> f64,
+    ) -> Result<Option<f64>, String> {
+        if let (Some(l), Some(r)) = (
+            Self::evaluate_numeric_value(left, questions, response_line)?,
+            Self::evaluate_numeric_value(right, questions, response_line)?,
+        ) {
+            Ok(Some(op(l, r)))
+        } else {
+            Ok(None)
         }
     }
 
@@ -1005,6 +1270,8 @@ impl CfmcLogic {
                     CfmcOperator::And => " AND ",
                     CfmcOperator::Or => " OR ",
                     CfmcOperator::Plus => "+",
+                    CfmcOperator::Multiply => "*",
+                    CfmcOperator::Divide => "/",
                     CfmcOperator::Comma => ",",
                     CfmcOperator::Dash => "-",
                     _ => &format!(" {operator:?} "),
@@ -1065,6 +1332,26 @@ impl CfmcLogic {
                 format!("{name}({})", args_str.join(","))
             }
             CfmcNode::ColumnRef { col, width } => format!("[{col}.{width}]"),
+            CfmcNode::PunchRef {
+                location,
+                codes,
+                multi_col,
+                negated,
+            } => {
+                let loc_str = Self::node_to_string(location);
+                let sep = if *multi_col { "^^" } else { "^" };
+                let neg = if *negated { "N" } else { "" };
+                let codes_str: Vec<String> = codes
+                    .iter()
+                    .map(|c| match c {
+                        10 => "0".to_string(),
+                        11 => "X".to_string(),
+                        12 => "Y".to_string(),
+                        n => n.to_string(),
+                    })
+                    .collect();
+                format!("[{loc_str}{sep}{neg}{codes_str}]", codes_str = codes_str.join(","))
+            }
         }
     }
 
@@ -1884,5 +2171,371 @@ mod tests {
         let logic = CfmcLogic::parse("[QD1#18-110]").unwrap();
         let output = logic.to_string();
         assert_eq!(output, "QD1(18-110)");
+    }
+
+    #[test]
+    fn test_arithmetic_multiply_divide() {
+        let questions = AHashMap::new();
+
+        // (5 * 3) > 10 → 15 > 10 → true
+        let logic = CfmcLogic::parse("[1.1] * [2.1] > 10").unwrap();
+        let response_line = "53";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+
+        // 8 / 2 > 5 → 4 > 5 → false
+        let logic = CfmcLogic::parse("[1.1] / [2.1] > 5").unwrap();
+        let response_line = "82";
+        assert!(!logic.evaluate(&questions, response_line).unwrap());
+    }
+
+    #[test]
+    fn test_arithmetic_precedence() {
+        let questions = AHashMap::new();
+
+        // 2 + 3 * 4 should be 2 + (3*4) = 14, not (2+3)*4 = 20
+        // [1.1]=2, [2.1]=3, [3.1]=4
+        let logic = CfmcLogic::parse("[1.1] + [2.1] * [3.1] > 13").unwrap();
+        let response_line = "234";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+
+        // Same expression > 15 → 14 > 15 → false (proves it's 14 not 20)
+        let logic = CfmcLogic::parse("[1.1] + [2.1] * [3.1] > 15").unwrap();
+        assert!(!logic.evaluate(&questions, response_line).unwrap());
+    }
+
+    #[test]
+    fn test_arithmetic_with_x_function() {
+        let mut questions = AHashMap::new();
+        let question = RflQuestion {
+            label: "AGE".to_string(),
+            start_col: 1,
+            width: 3,
+            question_type: QuestionType::Num,
+            max_responses: 1,
+            text_lines: Vec::new(),
+            responses: AHashMap::new(),
+            min_value: None,
+            max_value: None,
+            exceptions: Vec::new(),
+        };
+        questions.insert("AGE".to_string(), question);
+
+        // (5 + [10.2]) / AGE > 23 from the PDF example
+        // But using X(AGE) for safe numeric extraction
+        let logic = CfmcLogic::parse("(5 + [4.2]) / X(AGE) > 1").unwrap();
+
+        // AGE=3, [4.2]=10 → (5+10)/3 = 5 > 1 → true
+        let response_line = "003105";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+    }
+
+    #[test]
+    fn test_arithmetic_subtraction() {
+        let questions = AHashMap::new();
+
+        // [1.2] - [3.2] > 0 → 50 - 30 = 20 > 0 → true
+        let logic = CfmcLogic::parse("[1.2] - [3.2] > 0").unwrap();
+        let response_line = "5030";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+    }
+
+    #[test]
+    fn test_substring_still_works_with_arithmetic() {
+        // Ensure LABEL+0.4$ syntax still works (not treated as arithmetic)
+        let logic = CfmcLogic::parse("Q02+0.1=\"A\"").unwrap();
+        let output = logic.to_string();
+        assert_eq!(output, "Q02+0.1(A)");
+    }
+
+    #[test]
+    fn test_parse_punch_ref_single_col() {
+        let logic = CfmcLogic::parse("[Q1^1,5]").unwrap();
+        let output = logic.to_string();
+        assert_eq!(output, "[Q1^1,5]");
+    }
+
+    #[test]
+    fn test_parse_punch_ref_multi_col() {
+        let logic = CfmcLogic::parse("[Q1^^1,5]").unwrap();
+        let output = logic.to_string();
+        assert_eq!(output, "[Q1^^1,5]");
+    }
+
+    #[test]
+    fn test_parse_punch_ref_negated() {
+        let logic = CfmcLogic::parse("[Q1^^N1,5]").unwrap();
+        let output = logic.to_string();
+        assert_eq!(output, "[Q1^^N1,5]");
+    }
+
+    #[test]
+    fn test_parse_punch_ref_with_column_ref() {
+        let logic = CfmcLogic::parse("[10.2^^1,3,5]").unwrap();
+        let output = logic.to_string();
+        assert_eq!(output, "[[10.2]^^1,3,5]");
+    }
+
+    #[test]
+    fn test_evaluate_punch_ref_single_col() {
+        let mut questions = AHashMap::new();
+        let question = RflQuestion {
+            label: "Q1".to_string(),
+            start_col: 1,
+            width: 1,
+            question_type: QuestionType::Fld,
+            max_responses: 1,
+            text_lines: Vec::new(),
+            responses: AHashMap::new(),
+            min_value: None,
+            max_value: None,
+            exceptions: Vec::new(),
+        };
+        questions.insert("Q1".to_string(), question);
+
+        let logic = CfmcLogic::parse("[Q1^5]").unwrap();
+
+        // Data byte is '5' → punch code 5 → matches → true
+        let response_line = "5";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+
+        // Data byte is '3' → punch code 3 → no match → false
+        let response_line = "3";
+        assert!(!logic.evaluate(&questions, response_line).unwrap());
+
+        // Data byte is ' ' → no punch → false
+        let response_line = " ";
+        assert!(!logic.evaluate(&questions, response_line).unwrap());
+    }
+
+    #[test]
+    fn test_evaluate_punch_ref_multi_col() {
+        let mut questions = AHashMap::new();
+        let question = RflQuestion {
+            label: "Q1".to_string(),
+            start_col: 1,
+            width: 1,
+            question_type: QuestionType::Fld,
+            max_responses: 3,
+            text_lines: Vec::new(),
+            responses: AHashMap::new(),
+            min_value: None,
+            max_value: None,
+            exceptions: Vec::new(),
+        };
+        questions.insert("Q1".to_string(), question);
+
+        // Multi-col: code 1-12 → col 0, 13-24 → col 1, 25-36 → col 2
+        // Code 1 = punch 1 in col 0
+        let logic = CfmcLogic::parse("[Q1^^1]").unwrap();
+
+        // First col has '1' → punch 1 → matches
+        let response_line = "1  ";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+
+        // First col has '5' → punch 5, not 1 → no match
+        let response_line = "5  ";
+        assert!(!logic.evaluate(&questions, response_line).unwrap());
+    }
+
+    #[test]
+    fn test_evaluate_punch_ref_negated() {
+        let mut questions = AHashMap::new();
+        let question = RflQuestion {
+            label: "Q1".to_string(),
+            start_col: 1,
+            width: 1,
+            question_type: QuestionType::Fld,
+            max_responses: 1,
+            text_lines: Vec::new(),
+            responses: AHashMap::new(),
+            min_value: None,
+            max_value: None,
+            exceptions: Vec::new(),
+        };
+        questions.insert("Q1".to_string(), question);
+
+        let logic = CfmcLogic::parse("[Q1^N5]").unwrap();
+
+        // Data '5' → punch 5 → matches → negated → false
+        let response_line = "5";
+        assert!(!logic.evaluate(&questions, response_line).unwrap());
+
+        // Data '3' → punch 3, not 5 → no match → negated → true
+        let response_line = "3";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+    }
+
+    #[test]
+    fn test_evaluate_punch_ref_special_codes() {
+        let mut questions = AHashMap::new();
+        let question = RflQuestion {
+            label: "Q1".to_string(),
+            start_col: 1,
+            width: 1,
+            question_type: QuestionType::Fld,
+            max_responses: 1,
+            text_lines: Vec::new(),
+            responses: AHashMap::new(),
+            min_value: None,
+            max_value: None,
+            exceptions: Vec::new(),
+        };
+        questions.insert("Q1".to_string(), question);
+
+        // Code 0 → maps to punch 10, data '0' → punch 10
+        let logic = CfmcLogic::parse("[Q1^0]").unwrap();
+        let response_line = "0";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+
+        // Code X → punch 11, data 'X'
+        let logic = CfmcLogic::parse("[Q1^X]").unwrap();
+        let response_line = "X";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+
+        // Code Y → punch 12, data 'Y'
+        let logic = CfmcLogic::parse("[Q1^Y]").unwrap();
+        let response_line = "Y";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+    }
+
+    #[test]
+    fn test_parse_blank_check_label() {
+        let logic = CfmcLogic::parse("[Q1^^B]").unwrap();
+        let output = logic.to_string();
+        assert_eq!(output, "IsBlank Q1");
+    }
+
+    #[test]
+    fn test_parse_not_blank_check_label() {
+        let logic = CfmcLogic::parse("[Q1^^NB]").unwrap();
+        let output = logic.to_string();
+        assert_eq!(output, "IsNotBlank Q1");
+    }
+
+    #[test]
+    fn test_evaluate_blank_check_label() {
+        let mut questions = AHashMap::new();
+        let question = RflQuestion {
+            label: "Q1".to_string(),
+            start_col: 1,
+            width: 3,
+            question_type: QuestionType::Fld,
+            max_responses: 1,
+            text_lines: Vec::new(),
+            responses: AHashMap::new(),
+            min_value: None,
+            max_value: None,
+            exceptions: Vec::new(),
+        };
+        questions.insert("Q1".to_string(), question);
+
+        let logic = CfmcLogic::parse("[Q1^^B]").unwrap();
+
+        // Blank response → true
+        let response_line = "   ";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+
+        // Non-blank response → false
+        let response_line = "ABC";
+        assert!(!logic.evaluate(&questions, response_line).unwrap());
+    }
+
+    #[test]
+    fn test_evaluate_not_blank_check_label() {
+        let mut questions = AHashMap::new();
+        let question = RflQuestion {
+            label: "Q1".to_string(),
+            start_col: 1,
+            width: 3,
+            question_type: QuestionType::Fld,
+            max_responses: 1,
+            text_lines: Vec::new(),
+            responses: AHashMap::new(),
+            min_value: None,
+            max_value: None,
+            exceptions: Vec::new(),
+        };
+        questions.insert("Q1".to_string(), question);
+
+        let logic = CfmcLogic::parse("[Q1^^NB]").unwrap();
+
+        // Blank response → false
+        let response_line = "   ";
+        assert!(!logic.evaluate(&questions, response_line).unwrap());
+
+        // Non-blank response → true
+        let response_line = "ABC";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+    }
+
+    #[test]
+    fn test_evaluate_blank_check_column_ref() {
+        let questions = AHashMap::new();
+
+        let logic = CfmcLogic::parse("[10.2^^B]").unwrap();
+
+        // Columns 10-11 blank → true
+        let response_line = "000000000  0000";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+
+        // Columns 10-11 non-blank → false
+        let response_line = "000000000150000";
+        assert!(!logic.evaluate(&questions, response_line).unwrap());
+    }
+
+    #[test]
+    fn test_evaluate_not_blank_check_column_ref() {
+        let questions = AHashMap::new();
+
+        let logic = CfmcLogic::parse("[10.2^^NB]").unwrap();
+
+        // Columns 10-11 blank → false
+        let response_line = "000000000  0000";
+        assert!(!logic.evaluate(&questions, response_line).unwrap());
+
+        // Columns 10-11 non-blank → true
+        let response_line = "000000000150000";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+    }
+
+    #[test]
+    fn test_punch_ref_in_compound_expr() {
+        let mut questions = AHashMap::new();
+        let question = RflQuestion {
+            label: "Q1".to_string(),
+            start_col: 1,
+            width: 1,
+            question_type: QuestionType::Fld,
+            max_responses: 1,
+            text_lines: Vec::new(),
+            responses: AHashMap::new(),
+            min_value: None,
+            max_value: None,
+            exceptions: Vec::new(),
+        };
+        let comp = RflQuestion {
+            label: "COMP".to_string(),
+            start_col: 2,
+            width: 1,
+            question_type: QuestionType::Fld,
+            max_responses: 1,
+            text_lines: Vec::new(),
+            responses: AHashMap::new(),
+            min_value: None,
+            max_value: None,
+            exceptions: Vec::new(),
+        };
+        questions.insert("Q1".to_string(), question);
+        questions.insert("COMP".to_string(), comp);
+
+        let logic = CfmcLogic::parse("[Q1^5] AND COMP(1)").unwrap();
+
+        // Q1 has punch 5, COMP = 1 → true AND true
+        let response_line = "51";
+        assert!(logic.evaluate(&questions, response_line).unwrap());
+
+        // Q1 has punch 3, COMP = 1 → false AND true
+        let response_line = "31";
+        assert!(!logic.evaluate(&questions, response_line).unwrap());
     }
 }
