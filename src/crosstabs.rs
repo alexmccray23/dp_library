@@ -954,7 +954,7 @@ impl BannersTables {
 
     /// Replace `word` only when it appears as a whole word (not as a substring
     /// of a longer alphanumeric token).
-    fn replace_whole_word(input: &str, word: &str, replacement: &str) -> String {
+    fn _replace_whole_word(input: &str, word: &str, replacement: &str) -> String {
         let mut result = String::new();
         let mut remaining = input;
         while let Some(pos) = remaining.find(word) {
@@ -970,6 +970,28 @@ impl BannersTables {
                 result.push_str(&remaining[..after_pos]);
             }
             remaining = &remaining[after_pos..];
+        }
+        result.push_str(remaining);
+        result
+    }
+
+    fn replace_word_containing(input: &str, keyword: &str, replacement: &str) -> String {
+        let is_delimiter = |c: char| c.is_whitespace() || c == '&';
+        let mut result = String::new();
+        let mut remaining = input;
+
+        while let Some(pos) = remaining.find(keyword) {
+            let word_start = remaining[..pos]
+                .rfind(is_delimiter)
+                .map_or(0, |i| i + 1);
+
+            let word_end = remaining[pos..]
+                .find(is_delimiter)
+                .map_or(remaining.len(), |i| pos + i);
+
+            result.push_str(&remaining[..word_start]);
+            result.push_str(replacement);
+            remaining = &remaining[word_end..];
         }
         result.push_str(remaining);
         result
@@ -1015,7 +1037,7 @@ impl BannersTables {
                 };
 
                 if let Some(replacement) = replacement {
-                    *specs = Self::replace_whole_word(specs, age_question, replacement);
+                    *specs = Self::replace_word_containing(specs, age_question, replacement);
                 }
             }
         }
