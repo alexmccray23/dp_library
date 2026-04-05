@@ -74,16 +74,16 @@ fn load_counters(filename: &str) -> IoResult<Vec<Counter>> {
 
     for line in reader.lines() {
         let line = line?;
-        let line = line.trim();
+        //let line = line.trim();
 
         // Skip comments and empty lines
-        if line.starts_with('#') || line.is_empty() {
+        if line.starts_with('#') || line.trim().is_empty() {
             continue;
         }
 
         // Parse label:logic format
         if let Some(colon_pos) = line.find(':') {
-            let label = line[..colon_pos].trim().to_string();
+            let label = line[..colon_pos].to_string();
             let logic_str = line[colon_pos + 1..].trim();
 
             if logic_str.is_empty() {

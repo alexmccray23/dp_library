@@ -31,7 +31,7 @@ struct Args {
     )]
     data_file: Option<String>,
 
-    #[arg(short = 'l', long = "layout-file", help = "Path to .rfl file (Only needed if E file uses cfmc syntax logic)")]
+    #[arg(short = 'l', long = "layout-file", help = "Path to .rfl file (Only needed if E file uses cfmc syntax logic)", hide = true)]
     layout_file: Option<String>,
 
     #[arg(
