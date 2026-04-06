@@ -170,9 +170,29 @@ impl CfmcLogic {
     }
 
     fn parse_node(logic: &str) -> Result<CfmcNode, String> {
-        // Detect bracket-wrapped special syntax before trim_expression strips brackets
+        // Detect bracket-wrapped special syntax before trim_expression strips brackets.
+        // Only treat as a single bracketed expression if the leading '[' matches the
+        // trailing ']' (i.e., the entire input is wrapped in one bracket pair).
         let raw = logic.trim().to_uppercase();
-        if raw.starts_with('[') && raw.ends_with(']') {
+        if raw.starts_with('[') && raw.ends_with(']') && {
+            let bytes = raw.as_bytes();
+            let mut level = 0i32;
+            let mut wraps_all = true;
+            for (i, &b) in bytes.iter().enumerate() {
+                match b {
+                    b'[' => level += 1,
+                    b']' => {
+                        level -= 1;
+                        if level == 0 && i < bytes.len() - 1 {
+                            wraps_all = false;
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            wraps_all
+        } {
             let inner = &raw[1..raw.len() - 1];
 
             // Punch references: [LOC^^codes] or [LOC^codes]
@@ -2410,6 +2430,20 @@ mod tests {
         let logic = CfmcLogic::parse("[Q1^^NB]").unwrap();
         let output = logic.to_string();
         assert_eq!(output, "IsNotBlank Q1");
+    }
+
+    #[test]
+    fn test_parse_not_blank_check_label_or() {
+        let logic = CfmcLogic::parse("[Q1^^NB] OR [Q2^^NB]").unwrap();
+        let output = logic.to_string();
+        assert_eq!(output, "IsNotBlank Q1 OR IsNotBlank Q2");
+    }
+
+    #[test]
+    fn test_parse_blank_check_label_and() {
+        let logic = CfmcLogic::parse("[Q1^^B] AND [Q2^^B]").unwrap();
+        let output = logic.to_string();
+        assert_eq!(output, "IsBlank Q1 AND IsBlank Q2");
     }
 
     #[test]
