@@ -107,7 +107,16 @@ fn load_counters(filename: &str) -> IoResult<Vec<Counter>> {
                 }
                 Err(e) => {
                     eprintln!("ERROR: {e} for '{label}: {logic_str}'");
-                    // std::process::exit(1);
+                    // Still push the counter so the question shows up in the
+                    // report (with logic_count = 0). The mismatch indicator
+                    // will flag it visibly rather than silently dropping the
+                    // row.
+                    counters.push(Counter {
+                        label: label.to_uppercase(),
+                        logic: None,
+                        logic_count: 0,
+                        response_count: 0,
+                    });
                 }
             }
         }
