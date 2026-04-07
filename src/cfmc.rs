@@ -792,14 +792,14 @@ impl CfmcLogic {
         questions: &AHashMap<String, RflQuestion>,
         response_line: &str,
     ) -> Result<bool, String> {
-        // Try numeric evaluation for function calls
-        // if let Some(left_val) = Self::evaluate_numeric_value(left, questions, response_line)? {
-        //     if let Some(right_val) =
-        //         Self::evaluate_numeric_value(right, questions, response_line)?
-        //     {
-        //         return Ok((left_val - right_val).abs() < f64::EPSILON);
-        //     }
-        // }
+        // Try numeric evaluation first (e.g., [16.1]=1). QuestionLabel returns
+        // None from evaluate_numeric_value so the response-matching path below
+        // still handles `QLABEL = 1,2,3` style expressions.
+        if let Some(left_val) = Self::evaluate_numeric_value(left, questions, response_line)?
+            && let Some(right_val) = Self::evaluate_numeric_value(right, questions, response_line)?
+        {
+            return Ok((left_val - right_val).abs() < f64::EPSILON);
+        }
 
         // Get responses from left side
         let left_responses = match left {
