@@ -78,9 +78,80 @@ impl CfmcLogic {
     ///
     /// Returns an error if the expression syntax is invalid
     pub fn parse(expression: &str) -> Result<Self, String> {
-        let trimmed = Self::trim_expression(expression);
+        let (cleaned, warnings) = Self::check_balance(expression)?;
+        for warning in warnings {
+            eprintln!("warning: {warning}");
+        }
+        let trimmed = Self::trim_expression(&cleaned);
         let root = Self::parse_node(&trimmed)?;
         Ok(Self { root })
+    }
+
+    /// Single-pass balance check over the original expression.
+    ///
+    /// Extraneous closing `)` / `]` are dropped from the returned string and
+    /// reported as warnings (recoverable — the parser can still produce a
+    /// sensible tree). Unclosed `(` / `[` / `"` are returned as `Err` because
+    /// the resulting expression is genuinely malformed and any tree we build
+    /// would be guesswork.
+    fn check_balance(expr: &str) -> Result<(String, Vec<String>), String> {
+        let mut warnings = Vec::new();
+        let mut cleaned = String::with_capacity(expr.len());
+        let mut paren = 0i32;
+        let mut bracket = 0i32;
+        let mut in_quotes = false;
+        for (i, ch) in expr.char_indices() {
+            match ch {
+                '"' => {
+                    in_quotes = !in_quotes;
+                    cleaned.push(ch);
+                }
+                '(' if !in_quotes => {
+                    paren += 1;
+                    cleaned.push(ch);
+                }
+                ')' if !in_quotes => {
+                    if paren == 0 {
+                        warnings.push(format!(
+                            "Unbalanced parentheses: stray ')' at position {i} in `{expr}` (ignored)"
+                        ));
+                        // drop the stray char
+                    } else {
+                        paren -= 1;
+                        cleaned.push(ch);
+                    }
+                }
+                '[' if !in_quotes => {
+                    bracket += 1;
+                    cleaned.push(ch);
+                }
+                ']' if !in_quotes => {
+                    if bracket == 0 {
+                        warnings.push(format!(
+                            "Unbalanced brackets: stray ']' at position {i} in `{expr}` (ignored)"
+                        ));
+                    } else {
+                        bracket -= 1;
+                        cleaned.push(ch);
+                    }
+                }
+                _ => cleaned.push(ch),
+            }
+        }
+        if paren > 0 {
+            return Err(format!(
+                "Unbalanced parentheses: {paren} unclosed '(' in `{expr}`"
+            ));
+        }
+        if bracket > 0 {
+            return Err(format!(
+                "Unbalanced brackets: {bracket} unclosed '[' in `{expr}`"
+            ));
+        }
+        if in_quotes {
+            return Err(format!("Unclosed quote in `{expr}`"));
+        }
+        Ok((cleaned, warnings))
     }
 
     fn trim_expression(expr: &str) -> String {
@@ -221,7 +292,7 @@ impl CfmcLogic {
         }
 
         // Find the main operator by scanning with precedence
-        if let Some((op, pos)) = Self::find_main_operator(&trimmed)? {
+        if let Some((op, pos)) = Self::find_main_operator(&trimmed) {
             match op {
                 CfmcOperator::Not | CfmcOperator::NumItems => {
                     // Unary operators (prefix)
@@ -321,9 +392,13 @@ impl CfmcLogic {
         }
     }
 
-    fn find_main_operator(logic: &str) -> Result<Option<(CfmcOperator, usize)>, String> {
-        let mut level = 0;
-        let mut bracket_level = 0;
+    /// Scans for the lowest-precedence top-level operator. Imbalance is
+    /// reported once up front by `check_balance`; here we recover by clamping
+    /// negative nesting levels back to zero so the rest of the scan can still
+    /// find a main operator.
+    fn find_main_operator(logic: &str) -> Option<(CfmcOperator, usize)> {
+        let mut level = 0i32;
+        let mut bracket_level = 0i32;
         let mut in_quotes = false;
         let mut lowest_precedence = 255;
         let mut best_operator = None;
@@ -341,9 +416,7 @@ impl CfmcLogic {
                 b')' if !in_quotes => {
                     level -= 1;
                     if level < 0 {
-                        return Err(format!(
-                            "Unbalanced parentheses. Too many closing ')' at position {i}"
-                        ));
+                        level = 0;
                     }
                 }
                 b'[' if !in_quotes => {
@@ -352,9 +425,7 @@ impl CfmcLogic {
                 b']' if !in_quotes => {
                     bracket_level -= 1;
                     if bracket_level < 0 {
-                        return Err(format!(
-                            "Unbalanced brackets. Too many closing ']' at position {i}"
-                        ));
+                        bracket_level = 0;
                     }
                 }
                 _ => {}
@@ -376,22 +447,7 @@ impl CfmcLogic {
             i += 1;
         }
 
-        // Final check for unclosed parentheses/brackets
-        if level > 0 {
-            return Err(format!(
-                "Unbalanced parentheses. {level} unclosed '(' found"
-            ));
-        }
-        if bracket_level > 0 {
-            return Err(format!(
-                "Unbalanced brackets. {bracket_level} unclosed '[' found"
-            ));
-        }
-        if in_quotes {
-            return Err("Unclosed quote found".to_string());
-        }
-
-        Ok(best_operator.map(|op| (op, best_position)))
+        best_operator.map(|op| (op, best_position))
     }
 
     /// Check if `remaining` starts with `keyword` followed by a word boundary
@@ -1457,6 +1513,60 @@ mod tests {
         let logic = CfmcLogic::parse("COMP(1) AND (QB(01) OR AGEGROUP(1-3))").unwrap();
         let output = logic.to_string();
         assert_eq!(output, "COMP(1) AND (QB(01) OR AGEGROUP(1-3))");
+    }
+
+    #[test]
+    fn test_check_balance_stray_close_paren_dropped() {
+        let (cleaned, warnings) = CfmcLogic::check_balance("COMP(1))").unwrap();
+        assert_eq!(cleaned, "COMP(1)");
+        assert_eq!(warnings.len(), 1);
+        assert!(warnings[0].contains("stray ')'"));
+        assert!(warnings[0].contains("position 7"));
+    }
+
+    #[test]
+    fn test_check_balance_unclosed_paren_errors() {
+        let err = CfmcLogic::check_balance("COMP(1").unwrap_err();
+        assert!(err.contains("1 unclosed '('"));
+    }
+
+    #[test]
+    fn test_check_balance_balanced_is_silent() {
+        let (cleaned, warnings) = CfmcLogic::check_balance("COMP(1) AND QB(2)").unwrap();
+        assert_eq!(cleaned, "COMP(1) AND QB(2)");
+        assert!(warnings.is_empty());
+    }
+
+    #[test]
+    fn test_parse_recovers_from_stray_close_paren() {
+        // Stray ')' should warn but still parse and evaluate as COMP(1)
+        let mut questions = AHashMap::new();
+        questions.insert(
+            "COMP".to_string(),
+            RflQuestion {
+                label: "COMP".to_string(),
+                start_col: 1,
+                width: 1,
+                question_type: QuestionType::Fld,
+                max_responses: 1,
+                text_lines: Vec::new(),
+                responses: AHashMap::new(),
+                min_value: None,
+                max_value: None,
+                exceptions: Vec::new(),
+            },
+        );
+        let logic = CfmcLogic::parse("COMP(1))").unwrap();
+        let line = "1".to_owned() + &"0".repeat(100);
+        assert!(logic.evaluate(&questions, &line).unwrap());
+        let line = "2".to_owned() + &"0".repeat(100);
+        assert!(!logic.evaluate(&questions, &line).unwrap());
+    }
+
+    #[test]
+    fn test_parse_errors_on_unclosed_paren() {
+        // Unclosed '(' is malformed and should error
+        assert!(CfmcLogic::parse("COMP(1").is_err());
     }
 
     #[test]
