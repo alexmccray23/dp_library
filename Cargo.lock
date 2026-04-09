@@ -311,15 +311,18 @@ dependencies = [
 
 [[package]]
 name = "ipf"
-version = "0.1.0"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "778cdd00ba8f8580ce91a89c04782268c4e58519f94fd97236c5752b91f93eb5"
 dependencies = [
  "num-traits",
- "rayon",
 ]
 
 [[package]]
 name = "ipf_survey"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a74d63232c6767472a8068fbf3e7b1b888c1048f80763be7456e558474ad8339"
 dependencies = [
  "ipf",
 ]
